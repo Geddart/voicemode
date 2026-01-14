@@ -17,7 +17,6 @@ except ImportError:
 
 # Import configuration constants
 from voice_mode.config import (
-    DEFAULT_WHISPER_MODEL,
     DEFAULT_LISTEN_DURATION,
     MIN_RECORDING_DURATION,
 )

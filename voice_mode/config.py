@@ -163,25 +163,6 @@ def load_voicemode_env():
 # VOICEMODE_AUTO_START_KOKORO=false
 
 #############
-# Whisper Configuration
-#############
-
-# Whisper model to use (tiny, base, small, medium, large, large-v2, large-v3)
-# VOICEMODE_WHISPER_MODEL=base
-
-# Whisper server port (default: 2022)
-# VOICEMODE_WHISPER_PORT=2022
-
-# Number of threads for Whisper processing (auto-detected if not set)
-# VOICEMODE_WHISPER_THREADS=
-
-# Language for transcription (auto, en, es, fr, de, it, pt, ru, zh, ja, ko, etc.)
-# VOICEMODE_WHISPER_LANGUAGE=auto
-
-# Path to Whisper models
-# VOICEMODE_WHISPER_MODEL_PATH=~/.voicemode/services/whisper/models
-
-#############
 # Kokoro Configuration
 #############
 
@@ -570,17 +551,6 @@ def reload_configuration():
 LIVEKIT_URL = os.getenv("LIVEKIT_URL", "ws://127.0.0.1:7880")
 LIVEKIT_API_KEY = os.getenv("LIVEKIT_API_KEY", "devkey")
 LIVEKIT_API_SECRET = os.getenv("LIVEKIT_API_SECRET", "secret")
-
-# ==================== WHISPER CONFIGURATION ====================
-
-# Default Whisper model for installation and runtime
-DEFAULT_WHISPER_MODEL = "base"
-
-# Whisper-specific configuration
-WHISPER_MODEL = os.getenv("VOICEMODE_WHISPER_MODEL", DEFAULT_WHISPER_MODEL)
-WHISPER_PORT = int(os.getenv("VOICEMODE_WHISPER_PORT", "2022"))
-WHISPER_LANGUAGE = os.getenv("VOICEMODE_WHISPER_LANGUAGE", "auto")
-WHISPER_MODEL_PATH = expand_path(os.getenv("VOICEMODE_WHISPER_MODEL_PATH", str(Path.home() / ".voicemode" / "services" / "whisper" / "models")))
 
 # ==================== KOKORO CONFIGURATION ====================
 
