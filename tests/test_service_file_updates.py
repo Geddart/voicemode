@@ -133,8 +133,8 @@ def test_get_service_config_vars_handles_missing_start_script():
                 start_gpu.write_text("#!/bin/bash\necho test")
                 start_gpu.chmod(0o755)
             else:
-                # On macOS, create start-gpu_mac.sh
-                start_mac = Path(tmpdir) / "start-gpu_mac.sh"
+                # On macOS, create start-onnx_mac.sh
+                start_mac = Path(tmpdir) / "start-onnx_mac.sh"
                 start_mac.write_text("#!/bin/bash\necho test")
                 start_mac.chmod(0o755)
             
@@ -149,7 +149,7 @@ def test_get_service_config_vars_handles_missing_start_script():
             if platform.system() != "Darwin":
                 assert "start-gpu.sh" in config_vars["START_SCRIPT"]
             else:
-                assert "start-gpu_mac.sh" in config_vars["START_SCRIPT"]
+                assert "start-onnx_mac.sh" in config_vars["START_SCRIPT"]
 
 
 def test_get_service_config_vars_returns_empty_when_no_script_found():
@@ -177,7 +177,7 @@ def test_get_service_config_vars_selects_gpu_script_when_gpu_available():
     from pathlib import Path
     
     if platform.system() == "Darwin":
-        pytest.skip("macOS always uses start-gpu_mac.sh")
+        pytest.skip("macOS always uses start-onnx_mac.sh")
     
     with tempfile.TemporaryDirectory() as tmpdir:
         # Mock find_kokoro_fastapi to return our temp directory
@@ -209,7 +209,7 @@ def test_get_service_config_vars_selects_cpu_script_when_no_gpu():
     from pathlib import Path
     
     if platform.system() == "Darwin":
-        pytest.skip("macOS always uses start-gpu_mac.sh")
+        pytest.skip("macOS always uses start-onnx_mac.sh")
     
     with tempfile.TemporaryDirectory() as tmpdir:
         # Mock find_kokoro_fastapi to return our temp directory

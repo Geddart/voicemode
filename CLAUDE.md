@@ -17,7 +17,9 @@ When running `python -m voice_mode.server`, Python creates TWO module instances 
 
 ## Voice Interaction
 
-Load the voicemode skill for voice conversation support: `/voicemode:voicemode`
+**Always speak responses using the `mcp__voicemode__converse` tool.** The user uses Wispr Flow for voice input, so provide voice output for a natural conversation flow.
+
+Load the voicemode skill for extended voice conversation support: `/voicemode:voicemode`
 
 ## Project Overview
 

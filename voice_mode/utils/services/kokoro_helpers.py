@@ -22,7 +22,7 @@ def find_kokoro_fastapi() -> Optional[str]:
         if path.exists() and path.is_dir():
             # Look for start scripts
             if platform.system() == "Darwin":
-                start_script = path / "start-gpu_mac.sh"
+                start_script = path / "start-onnx_mac.sh"
             else:
                 # Check for appropriate start script
                 if has_gpu_support():
@@ -78,7 +78,7 @@ def is_kokoro_starting_up() -> Optional[str]:
                     return "loading models (please wait)"
 
                 # Check for start script running
-                if 'start-gpu_mac.sh' in cmdline_str or 'start-cpu.sh' in cmdline_str or 'start-gpu.sh' in cmdline_str:
+                if 'start-onnx_mac.sh' in cmdline_str or 'start-cpu.sh' in cmdline_str or 'start-gpu.sh' in cmdline_str:
                     if 'kokoro' in cmdline_str:
                         return "starting up"
 

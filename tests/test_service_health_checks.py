@@ -45,7 +45,7 @@ def test_unified_startup_scripts_exist():
     assert whisper_script.stat().st_mode & 0o111  # Check executable
 
     # Kokoro doesn't have a unified startup script in templates
-    # It uses start-gpu_mac.sh, start-gpu.sh, or start-cpu.sh from the Kokoro installation
+    # It uses start-onnx_mac.sh, start-gpu.sh, or start-cpu.sh from the Kokoro installation
 
 
 def test_startup_script_content():
@@ -65,7 +65,7 @@ def test_startup_script_content():
     assert "VOICEMODE_WHISPER_PORT" in content  # Reads port config
 
     # Kokoro doesn't have a unified startup script to test here
-    # Its scripts (start-gpu_mac.sh, start-gpu.sh, start-cpu.sh) come with the installation
+    # Its scripts (start-onnx_mac.sh, start-gpu.sh, start-cpu.sh) come with the installation
 
 
 def test_template_placeholders():

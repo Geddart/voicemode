@@ -107,7 +107,7 @@ async def kokoro_install(
     Install and setup remsky/kokoro-fastapi TTS service using the simple 3-step approach.
 
     1. Clones the repository to ~/.voicemode/services/kokoro
-    2. Uses the appropriate start script (start-gpu_mac.sh on macOS)
+    2. Uses the appropriate start script (start-onnx_mac.sh on macOS for faster inference)
     3. Installs a launchagent on macOS for automatic startup
 
     Args:
@@ -200,7 +200,8 @@ async def kokoro_install(
                     # Determine which start script to use
                     system = platform.system()
                     if system == "Darwin":
-                        start_script_name = "start-gpu_mac.sh"
+                        # Use ONNX on macOS for faster inference
+                        start_script_name = "start-onnx_mac.sh"
                     else:
                         start_script_name = "start-gpu.sh"  # Default to GPU version
                     
@@ -314,7 +315,33 @@ async def kokoro_install(
         # Determine system and select appropriate start script
         system = platform.system()
         if system == "Darwin":
-            start_script_name = "start-gpu_mac.sh"
+            # Use ONNX on macOS for faster inference (~2-3s vs ~6-7s with PyTorch/MPS)
+            start_script_name = "start-onnx_mac.sh"
+            onnx_script_path = os.path.join(install_dir, start_script_name)
+            if not os.path.exists(onnx_script_path):
+                logger.info("Creating ONNX start script for macOS...")
+                onnx_script_content = '''#!/bin/bash
+
+# Get project root directory
+PROJECT_ROOT=$(pwd)
+
+# Set environment variables - ONNX mode for faster inference
+export USE_GPU=false
+export USE_ONNX=true
+export PYTHONPATH=$PROJECT_ROOT:$PROJECT_ROOT/api
+export MODEL_DIR=src/models
+export VOICES_DIR=src/voices/v1_0
+export WEB_PLAYER_PATH=$PROJECT_ROOT/web
+
+# Run FastAPI with ONNX
+uv pip install -e ".[cpu]"
+uv run --no-sync pip install onnxruntime
+uv run --no-sync python docker/scripts/download_model.py --output api/src/models/v1_0
+uv run --no-sync uvicorn api.src.main:app --host 0.0.0.0 --port 8880
+'''
+                with open(onnx_script_path, 'w') as f:
+                    f.write(onnx_script_content)
+                os.chmod(onnx_script_path, 0o755)
         elif system == "Linux":
             # Check if GPU available
             if shutil.which("nvidia-smi"):

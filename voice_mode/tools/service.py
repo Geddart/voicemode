@@ -72,7 +72,7 @@ def get_service_config_vars(service_name: str) -> Dict[str, Any]:
         # Find start script
         start_script = None
         if platform.system() == "Darwin":
-            start_script = Path(kokoro_dir) / "start-gpu_mac.sh"
+            start_script = Path(kokoro_dir) / "start-onnx_mac.sh"
         else:
             # On Linux, prefer GPU script if GPU is available, otherwise use CPU script
             if has_gpu_support():
@@ -399,7 +399,7 @@ async def start_service(service_name: str) -> str:
         
         # Use appropriate start script
         if platform.system() == "Darwin":
-            start_script = Path(kokoro_dir) / "start-gpu_mac.sh"
+            start_script = Path(kokoro_dir) / "start-onnx_mac.sh"
         else:
             # On Linux, prefer GPU script if GPU is available, otherwise use CPU script
             if has_gpu_support():
