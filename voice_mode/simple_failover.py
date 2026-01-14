@@ -21,6 +21,7 @@ async def simple_tts_failover(
     text: str,
     voice: str,
     model: str,
+    background: bool = False,
     **kwargs
 ) -> Tuple[bool, Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
     """
@@ -96,6 +97,7 @@ async def simple_tts_failover(
                 tts_voice=selected_voice,
                 tts_base_url=base_url,
                 conversation_id=conversation_id,
+                background=background,
                 **kwargs
             )
 

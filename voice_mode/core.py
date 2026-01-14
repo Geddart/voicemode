@@ -175,12 +175,18 @@ async def text_to_speech(
     instructions: Optional[str] = None,
     audio_format: Optional[str] = None,
     conversation_id: Optional[str] = None,
-    speed: Optional[float] = None
+    speed: Optional[float] = None,
+    background: bool = False
 ) -> tuple[bool, Optional[dict]]:
     """Convert text to speech and play it.
-    
+
+    Args:
+        background: If True, start playback and return immediately without waiting.
+                   Useful for non-blocking TTS where Claude can continue working.
+
     Returns:
         tuple: (success: bool, metrics: dict) where metrics contains 'generation' and 'playback' times
+               When background=True, 'playback' will be 0 since we don't wait.
     """
     import time
     
@@ -422,10 +428,18 @@ async def text_to_speech(
                         # Use non-blocking audio player for concurrent playback support
                         player = NonBlockingAudioPlayer()
                         player.play(samples_with_buffer, audio.frame_rate, blocking=False)
-                        player.wait()
-                        
-                        playback_end = time.perf_counter()
-                        metrics['playback'] = playback_end - playback_start
+
+                        if background:
+                            # Background mode: return immediately without waiting
+                            # Audio will continue playing while caller proceeds
+                            metrics['playback'] = 0
+                            metrics['background'] = True
+                            logger.info("TTS: Playback started in background mode")
+                        else:
+                            # Normal mode: wait for playback to complete
+                            player.wait()
+                            playback_end = time.perf_counter()
+                            metrics['playback'] = playback_end - playback_start
 
                         # Log TTS playback end event with metrics
                         if event_logger:

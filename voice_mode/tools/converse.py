@@ -388,7 +388,8 @@ async def text_to_speech_with_failover(
     instructions: Optional[str] = None,
     audio_format: Optional[str] = None,
     initial_provider: Optional[str] = None,
-    speed: Optional[float] = None
+    speed: Optional[float] = None,
+    background: bool = False
 ) -> Tuple[bool, Optional[dict], Optional[dict]]:
     """
     Text to speech with automatic failover to next available endpoint.
@@ -407,6 +408,7 @@ async def text_to_speech_with_failover(
         text=message,
         voice=voice or TTS_VOICES[0],
         model=model or TTS_MODELS[0],
+        background=background,
         instructions=instructions,
         audio_format=audio_format,
         debug=DEBUG,
@@ -1075,15 +1077,18 @@ async def converse(
     tts_provider: Optional[Literal["openai", "kokoro"]] = None,
     speed: Optional[float] = None,
     tts_model: Optional[str] = None,
-    tts_instructions: Optional[str] = None
+    tts_instructions: Optional[str] = None,
+    background: bool = False
 ) -> str:
     """Speak a message using text-to-speech.
 
-Args:
-    message: Text to speak (required)
-    voice: TTS voice name (auto-selected if not specified)
-    speed: Speech rate 0.25-4.0 (default: 1.0)
-    tts_provider: "openai" or "kokoro" (auto-selected if not specified)
+    Args:
+        message: Text to speak (required)
+        voice: TTS voice name (auto-selected if not specified)
+        speed: Speech rate 0.25-4.0 (default: 1.0)
+        tts_provider: "openai" or "kokoro" (auto-selected if not specified)
+        background: If True, start playback and return immediately (default: False).
+                   Audio plays while Claude continues working.
     """
     # TTS-only mode: hardcode these values
     wait_for_response = False
@@ -1270,7 +1275,7 @@ Args:
                     }
                     tts_config = {'provider': 'no-op', 'voice': 'none'}
                 else:
-                    # Duck DJ volume during TTS playback
+                    # Duck DJ volume during TTS playback (only if not background mode)
                     with DJDucker():
                         tts_success, tts_metrics, tts_config = await text_to_speech_with_failover(
                             message=message,
@@ -1279,7 +1284,8 @@ Args:
                             instructions=tts_instructions,
                             audio_format=audio_format,
                             initial_provider=tts_provider,
-                            speed=speed
+                            speed=speed,
+                            background=background
                         )
                 
                 # Add TTS sub-metrics
@@ -1365,8 +1371,12 @@ Args:
                 if not wait_for_response:
                     # Format timing info for speak-only mode
                     timing_info = ""
+                    is_background = tts_metrics.get('background', False) if tts_metrics else False
                     if tts_success and tts_metrics:
-                        timing_info = f" (gen: {tts_metrics.get('generation', 0):.1f}s, play: {tts_metrics.get('playback', 0):.1f}s)"
+                        if is_background:
+                            timing_info = f" (gen: {tts_metrics.get('generation', 0):.1f}s, playing in background)"
+                        else:
+                            timing_info = f" (gen: {tts_metrics.get('generation', 0):.1f}s, play: {tts_metrics.get('playback', 0):.1f}s)"
 
                     # Create timing string for statistics
                     timing_str = ""
@@ -1395,9 +1405,15 @@ Args:
 
                     # Format result based on metrics level
                     if effective_metrics_level == "minimal":
-                        result = "✓ Message spoken successfully"
+                        if is_background:
+                            result = "✓ Speaking in background"
+                        else:
+                            result = "✓ Message spoken successfully"
                     else:
-                        result = f"✓ Message spoken successfully{timing_info}"
+                        if is_background:
+                            result = f"✓ Speaking in background{timing_info}"
+                        else:
+                            result = f"✓ Message spoken successfully{timing_info}"
                     logger.info(f"Speak-only result: {result}")
                     return result
 
