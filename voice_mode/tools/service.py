@@ -828,30 +828,12 @@ async def service(
     action: Literal["status", "start", "stop", "restart", "enable", "disable", "logs", "update-service-files"] = "status",
     lines: Optional[Union[int, str]] = None
 ) -> str:
-    """Unified service management tool for voice mode services.
-    
-    Manage Whisper (STT) and Kokoro (TTS) services with a single tool.
-    
-    Args:
-        service_name: The service to manage ("whisper" or "kokoro")
-        action: The action to perform (default: "status")
-            - status: Show if service is running and resource usage
-            - start: Start the service
-            - stop: Stop the service
-            - restart: Stop and start the service
-            - enable: Configure service to start at boot/login
-            - disable: Remove service from boot/login
-            - logs: View recent service logs
-            - update-service-files: Update systemd/launchd service files to latest version
-        lines: Number of log lines to show (only for logs action, default: 50)
-    
-    Returns:
-        Status message indicating the result of the action
-    
-    Examples:
-        service("whisper", "status")  # Check if Whisper is running
-        service("kokoro", "start")    # Start Kokoro service
-        service("whisper", "logs", 100)  # View last 100 lines of Whisper logs
+    """Manage Whisper (STT) and Kokoro (TTS) services.
+
+Args:
+    service_name: "whisper" or "kokoro"
+    action: status|start|stop|restart|enable|disable|logs|update-service-files
+    lines: Log lines to show (logs action only, default: 50)
     """
     # Convert lines to integer if provided as string
     if lines is not None and isinstance(lines, str):

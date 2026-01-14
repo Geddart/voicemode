@@ -1,4 +1,8 @@
-"""Integration tests for minimum duration feature in converse tool."""
+"""Integration tests for minimum duration feature in converse tool.
+
+NOTE: These tests are skipped because listen_duration_min and wait_for_response
+parameters were removed in the TTS-only fork of voicemode.
+"""
 
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
@@ -9,6 +13,9 @@ import sys
 sys.modules['webrtcvad'] = MagicMock()
 sys.modules['sounddevice'] = MagicMock()
 sys.modules['livekit'] = MagicMock()
+
+# Skip all tests in this module - listening functionality removed
+pytestmark = pytest.mark.skip(reason="listen_duration_min removed in TTS-only fork")
 
 
 @pytest.mark.asyncio

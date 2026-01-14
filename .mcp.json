@@ -5,7 +5,11 @@
       "command": "uv",
       "args": [
         "run",
-        "voicemode"
+        "--directory",
+        "/Users/geddart/Projekte/1000_Coding/voicemode",
+        "python",
+        "-m",
+        "voice_mode.server"
       ],
       "env": {
         "VOICEMODE_SAVE_ALL": "true",

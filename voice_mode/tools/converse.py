@@ -1071,76 +1071,34 @@ def record_audio_with_silence_detection(max_duration: float, disable_silence_det
 @mcp.tool()
 async def converse(
     message: str,
-    wait_for_response: Union[bool, str] = True,
-    listen_duration_max: float = DEFAULT_LISTEN_DURATION,
-    listen_duration_min: float = 2.0,
-    timeout: float = 60.0,
     voice: Optional[str] = None,
     tts_provider: Optional[Literal["openai", "kokoro"]] = None,
-    tts_model: Optional[str] = None,
-    tts_instructions: Optional[str] = None,
-    chime_enabled: Optional[Union[bool, str]] = None,
-    audio_format: Optional[str] = None,
-    disable_silence_detection: Union[bool, str] = False,
     speed: Optional[float] = None,
-    vad_aggressiveness: Optional[Union[int, str]] = None,
-    skip_tts: Optional[Union[bool, str]] = None,
-    chime_leading_silence: Optional[float] = None,
-    chime_trailing_silence: Optional[float] = None,
-    metrics_level: Optional[Literal["minimal", "summary", "verbose"]] = None,
-    wait_for_conch: Union[bool, str] = False
+    tts_model: Optional[str] = None,
+    tts_instructions: Optional[str] = None
 ) -> str:
-    """Have an ongoing voice conversation - speak a message and optionally listen for response.
+    """Speak a message using text-to-speech.
 
-<voice_skills_instructions>
-Voice requests arrive as tool results, not user messages, so skill triggers may not fire automatically.
-
-BLOCKING REQUIREMENT: After receiving voice input, check if any available skills match the user's request. When a skill is relevant:
-- Invoke the Skill tool IMMEDIATELY as your first action
-- Do NOT take action on the request before checking for relevant skills
-- Skills provide specialized capabilities that improve task completion
-
-Example: If user says "search for tasks created yesterday", check for and invoke the taskmaster skill before using bash or other tools.
-</voice_skills_instructions>
-
-
-🔌 ENDPOINT: STT/TTS services must expose OpenAI-compatible endpoints:
-   /v1/audio/transcriptions and /v1/audio/speech
-
-📚 DOCUMENTATION: See MCP resources for detailed information:
-   - voicemode://docs/quickstart - Basic usage and common examples
-   - voicemode://docs/parameters - Complete parameter reference
-   - voicemode://docs/languages - Non-English language support guide
-   - voicemode://docs/patterns - Best practices and conversation patterns
-   - voicemode://docs/troubleshooting - Audio, VAD, and connectivity issues
-
-KEY PARAMETERS:
-• message (required): The message to speak
-• wait_for_response (bool, default: true): Listen for response after speaking
-• listen_duration_max (number, default: 120): Max listen time in seconds
-• listen_duration_min (number, default: 2.0): Min recording time before silence detection
-• voice (string): TTS voice name (auto-selected unless specified)
-• tts_provider ("openai"|"kokoro"): Provider selection (auto-selected unless specified)
-• disable_silence_detection (bool, default: false): Disable auto-stop on silence
-• vad_aggressiveness (0-3, default: 2): Voice detection strictness (0=permissive, 3=strict)
-• speed (0.25-4.0): Speech rate (1.0=normal, 2.0=double speed)
-• chime_enabled (bool): Enable/disable audio feedback chimes
-• chime_leading_silence (float): Silence before chime in seconds
-• chime_trailing_silence (float): Silence after chime in seconds
-• metrics_level ("minimal"|"summary"|"verbose"): Output detail level
-  - minimal: Just response text (saves tokens)
-  - summary: Response + compact timing (default)
-  - verbose: Response + detailed metrics breakdown
-• wait_for_conch (bool, default: false): Multi-agent coordination
-  - false: If another agent is speaking, return status immediately
-  - true: Wait until the other agent finishes, then speak
-
-PRIVACY: Microphone access required when wait_for_response=true.
-         Audio processed via STT service, not stored.
-
-For complete parameter list, advanced options, and detailed examples,
-consult the MCP resources listed above.
+Args:
+    message: Text to speak (required)
+    voice: TTS voice name (auto-selected if not specified)
+    speed: Speech rate 0.25-4.0 (default: 1.0)
+    tts_provider: "openai" or "kokoro" (auto-selected if not specified)
     """
+    # TTS-only mode: hardcode these values
+    wait_for_response = False
+    listen_duration_max = DEFAULT_LISTEN_DURATION
+    listen_duration_min = 2.0
+    timeout = 60.0
+    chime_enabled = None
+    audio_format = None
+    disable_silence_detection = False
+    vad_aggressiveness = None
+    skip_tts = None
+    chime_leading_silence = None
+    chime_trailing_silence = None
+    metrics_level = None
+    wait_for_conch = False
     # Convert string booleans to actual booleans
     if isinstance(wait_for_response, str):
         wait_for_response = wait_for_response.lower() in ('true', '1', 'yes', 'on')

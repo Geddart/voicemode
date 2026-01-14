@@ -1,4 +1,8 @@
-"""Tests for skip_tts parameter in converse function"""
+"""Tests for skip_tts parameter in converse function.
+
+NOTE: These tests are skipped because skip_tts parameter was removed
+in the TTS-only fork of voicemode.
+"""
 
 import os
 import pytest
@@ -6,6 +10,9 @@ import pytest_asyncio
 from unittest.mock import Mock, patch
 from fastmcp import Client
 from voice_mode.server import mcp
+
+# Skip all tests in this module - skip_tts parameter was removed
+pytestmark = pytest.mark.skip(reason="skip_tts parameter removed in TTS-only fork")
 
 
 @pytest.fixture

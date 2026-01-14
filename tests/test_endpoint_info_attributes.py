@@ -148,8 +148,7 @@ class TestConverseIntegrationWithEndpointInfo:
 
             # This should handle the error gracefully
             result = await converse.fn(
-                message="Test message",
-                wait_for_response=False
+                message="Test message"
             )
 
             # Should return an error message, not crash
@@ -174,8 +173,7 @@ class TestConverseIntegrationWithEndpointInfo:
             })
 
             result = await converse.fn(
-                message="Test message",
-                wait_for_response=False
+                message="Test message"
             )
 
             # Should mention quota or API key issue

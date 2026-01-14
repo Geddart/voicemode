@@ -2,6 +2,19 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Current Session Context
+
+**Read [conversation.md](conversation.md) for full debugging context.**
+
+### Quick Status (January 14, 2026)
+- **Goal:** Get VoiceMode MCP server working with Claude Code for TTS-only mode
+- **User Setup:** Wispr Flow handles voice input, VoiceMode provides voice output via Kokoro TTS
+- **Status:** Fixed critical Python module identity bug that caused 0 tools to be visible
+- **Next Step:** Restart Claude Code and verify MCP connection + test `converse` tool
+
+### Key Fix Applied
+When running `python -m voice_mode.server`, Python creates TWO module instances (`__main__` and `voice_mode.server`) with separate `mcp` objects. Tools registered on one, but `main()` ran the other. Fixed in server.py lines 23-28 by ensuring module identity before tool imports.
+
 ## Voice Interaction
 
 Load the voicemode skill for voice conversation support: `/voicemode:voicemode`
@@ -133,3 +146,31 @@ Logs are stored in `~/.voicemode/`:
 - **[docs/tutorials/getting-started.md](docs/tutorials/getting-started.md)** - Installation guide
 - **[docs/guides/configuration.md](docs/guides/configuration.md)** - Configuration reference
 - **[docs/concepts/architecture.md](docs/concepts/architecture.md)** - Detailed architecture
+
+## MCP Server Debugging
+
+### Common Issues
+
+1. **"1 MCP server failed"** - Check for stdout pollution (banners, print statements)
+2. **0 tools visible** - Module identity issue; ensure `sys.modules["voice_mode.server"]` is set before tool imports
+3. **Tools not registering** - Verify `@mcp.tool()` decorator imports `mcp` from correct module
+
+### Debug Commands
+
+```bash
+# Test MCP server directly (should return JSON with 2 tools)
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | uv run python -m voice_mode.server 2>/dev/null
+
+# Check tool registration
+uv run python -c "import voice_mode.server; print(list(voice_mode.server.mcp._tool_manager._tools.keys()))"
+
+# Check Kokoro TTS service
+curl -s http://localhost:8880/v1/audio/voices | python3 -c "import sys,json; print(len(json.load(sys.stdin)['voices']), 'voices')"
+```
+
+### MCP stdio Transport Rules
+
+- **stdout**: ONLY JSON-RPC messages (no banners, no print statements)
+- **stderr**: All logging, warnings, debug output
+- Always use `show_banner=False` with FastMCP
+- Always use `stream=sys.stderr` for logging.basicConfig()

@@ -736,14 +736,18 @@ _startup_initialized = False
 
 def setup_logging() -> logging.Logger:
     """Configure logging for the voice-mode server.
-    
+
     Returns:
         Logger instance configured for voice-mode
     """
+    import sys
     log_level = logging.DEBUG if DEBUG else logging.INFO
+    # Explicitly use stderr for MCP stdio transport compatibility
+    # (stdout must only contain JSON-RPC messages)
     logging.basicConfig(
         level=log_level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        stream=sys.stderr
     )
     logger = logging.getLogger("voicemode")
     

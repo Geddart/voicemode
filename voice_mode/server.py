@@ -2,6 +2,7 @@
 """VoiceMode MCP Server - Modular version using FastMCP patterns."""
 
 import os
+import sys
 import platform
 
 # Extend PATH to include common tool locations before any imports that might need them
@@ -19,13 +20,20 @@ from fastmcp import FastMCP
 # Create FastMCP instance
 mcp = FastMCP("voicemode")
 
+# CRITICAL: When running as `python -m voice_mode.server`, this module runs as __main__
+# but tools import `from voice_mode.server import mcp`. Without this fix, Python would
+# create TWO separate module instances with TWO separate mcp objects - tools would
+# register on one mcp while main() runs another. This ensures there's only one.
+if __name__ == "__main__" and "voice_mode.server" not in sys.modules:
+    sys.modules["voice_mode.server"] = sys.modules[__name__]
+
 # Import shared configuration and utilities
 from . import config
 
 # Auto-import all tools, prompts, and resources
 # The __init__.py files in each directory handle the imports
 from . import tools
-from . import prompts 
+from . import prompts
 from . import resources
 
 # Main entry point
@@ -92,8 +100,8 @@ def main():
     else:
         logger.info("Event logging disabled")
     
-    # Run the server
-    mcp.run(transport="stdio")
+    # Run the server (disable banner for stdio transport - it breaks the MCP protocol)
+    mcp.run(transport="stdio", show_banner=False)
 
 if __name__ == "__main__":
     main()

@@ -28,8 +28,7 @@ class TestConverseOpenAIErrors:
             with patch('voice_mode.config.TTS_BASE_URLS', ['https://api.openai.com/v1']):
                 with patch('voice_mode.config.OPENAI_API_KEY', 'test-api-key'):
                     result = await converse.fn(
-                        message="Test message",
-                        wait_for_response=False
+                        message="Test message"
                     )
 
                 # User should see a clear message about quota/credit issue
@@ -53,8 +52,7 @@ class TestConverseOpenAIErrors:
             with patch('voice_mode.config.TTS_BASE_URLS', ['https://api.openai.com/v1']):
                 with patch('voice_mode.config.OPENAI_API_KEY', 'invalid-key'):
                     result = await converse.fn(
-                        message="Test message",
-                        wait_for_response=False
+                        message="Test message"
                     )
 
                     # User should see a message about API key issue
@@ -77,8 +75,7 @@ class TestConverseOpenAIErrors:
 
             with patch('voice_mode.config.TTS_BASE_URLS', ['https://api.openai.com/v1']):
                 result = await converse.fn(
-                    message="Test message",
-                    wait_for_response=False
+                    message="Test message"
                 )
 
                 # User should see a message about rate limiting
@@ -112,8 +109,7 @@ class TestConverseFailoverBehavior:
 
             with patch('voice_mode.config.TTS_BASE_URLS', test_urls):
                 result = await converse.fn(
-                    message="Test message",
-                    wait_for_response=False
+                    message="Test message"
                 )
 
                 # Should have tried both endpoints (check from error config)
@@ -131,8 +127,7 @@ class TestConverseFailoverBehavior:
             mock_tts.return_value = (True, {'duration_ms': 100}, {'provider': 'openai'})
 
             result = await converse.fn(
-                message="Test message",
-                wait_for_response=False
+                message="Test message"
             )
 
             # Should succeed without error
@@ -159,8 +154,7 @@ class TestConverseErrorMessages:
 
             with patch('voice_mode.config.OPENAI_API_KEY', None):
                 result = await converse.fn(
-                    message="Test",
-                    wait_for_response=False
+                    message="Test"
                 )
 
                 # Should suggest checking services or setting API key
@@ -186,14 +180,14 @@ class TestConverseErrorMessages:
             })
 
             result = await converse.fn(
-                message="Test",
-                wait_for_response=False
+                message="Test"
             )
 
             # Should mention the provider that failed
             assert 'openai' in result.lower() or 'api' in result.lower()
 
 
+@pytest.mark.skip(reason="STT functionality removed in TTS-only fork")
 class TestConverseSTTFailures:
     """Test STT (speech-to-text) failure handling."""
 
@@ -225,7 +219,7 @@ class TestConverseSTTFailures:
 
                     result = await converse.fn(
                         message="Test",
-                        wait_for_response=True
+                        
                     )
 
                     # Should indicate STT/transcription failure
@@ -254,7 +248,7 @@ class TestConverseSTTFailures:
 
                     result = await converse.fn(
                         message="Are you there?",
-                        wait_for_response=True
+                        
                     )
 
                     # Should indicate no speech detected
@@ -276,8 +270,7 @@ class TestConverseMetrics:
             }, {'provider': 'openai'})
 
             result = await converse.fn(
-                message="Test",
-                wait_for_response=False
+                message="Test"
             )
 
             # Timing info should be included in successful responses (check for 's' suffix for seconds)

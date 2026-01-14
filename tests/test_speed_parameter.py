@@ -20,8 +20,7 @@ class TestSpeedParameter:
                 
                 result = await converse(
                     message="Test",
-                    wait_for_response=False,
-                    speed=1.5
+                                        speed=1.5
                 )
                 
                 assert "Message spoken successfully" in result
@@ -39,8 +38,7 @@ class TestSpeedParameter:
                 # This is what happens when MCP passes the parameter
                 result = await converse(
                     message="Test",
-                    wait_for_response=False,
-                    speed="1.5"  # String value
+                                        speed="1.5"  # String value
                 )
                 
                 assert "Message spoken successfully" in result
@@ -55,8 +53,7 @@ class TestSpeedParameter:
         with patch('voice_mode.tools.converse.startup_initialization', new_callable=AsyncMock):
             result = await converse(
                 message="Test",
-                wait_for_response=False,
-                speed="invalid"
+                                speed="invalid"
             )
             
             assert "Error: speed must be a number" in result
@@ -68,16 +65,14 @@ class TestSpeedParameter:
             # Test too low
             result = await converse(
                 message="Test",
-                wait_for_response=False,
-                speed=0.1
+                                speed=0.1
             )
             assert "Error: speed must be between 0.25 and 4.0" in result
             
             # Test too high
             result = await converse(
                 message="Test",
-                wait_for_response=False,
-                speed=5.0
+                                speed=5.0
             )
             assert "Error: speed must be between 0.25 and 4.0" in result
     
@@ -91,8 +86,7 @@ class TestSpeedParameter:
 
                     result = await converse(
                         message="Test",
-                        wait_for_response=False,
-                        speed=None
+                                                speed=None
                     )
 
                     assert "Message spoken successfully" in result
@@ -110,24 +104,21 @@ class TestSpeedParameter:
                 # Test minimum valid speed
                 result = await converse(
                     message="Test",
-                    wait_for_response=False,
-                    speed=0.25
+                                        speed=0.25
                 )
                 assert "Message spoken successfully" in result
                 
                 # Test maximum valid speed
                 result = await converse(
                     message="Test",
-                    wait_for_response=False,
-                    speed=4.0
+                                        speed=4.0
                 )
                 assert "Message spoken successfully" in result
                 
                 # Test integer speed (should work)
                 result = await converse(
                     message="Test",
-                    wait_for_response=False,
-                    speed=2
+                                        speed=2
                 )
                 assert "Message spoken successfully" in result
 
@@ -141,8 +132,7 @@ class TestSpeedParameter:
 
                     result = await converse(
                         message="Test",
-                        wait_for_response=False,
-                        speed=None
+                                                speed=None
                     )
 
                     assert "Message spoken successfully" in result
@@ -160,8 +150,7 @@ class TestSpeedParameter:
 
                     result = await converse(
                         message="Test",
-                        wait_for_response=False,
-                        speed=2.0  # Explicit speed should win
+                                                speed=2.0  # Explicit speed should win
                     )
 
                     assert "Message spoken successfully" in result
@@ -176,8 +165,7 @@ class TestSpeedParameter:
             with patch('voice_mode.tools.converse.TTS_SPEED', 10.0):  # Invalid value
                 result = await converse(
                     message="Test",
-                    wait_for_response=False,
-                    speed=None
+                                        speed=None
                 )
 
                 assert "Error: speed must be between 0.25 and 4.0" in result
@@ -191,8 +179,7 @@ class TestSpeedParameter:
             with patch('voice_mode.tools.converse.TTS_SPEED', 1.5):  # Valid config value
                 result = await converse(
                     message="Test",
-                    wait_for_response=False,
-                    speed=10.0  # Explicit invalid value
+                                        speed=10.0  # Explicit invalid value
                 )
 
                 assert "Error: speed must be between 0.25 and 4.0" in result
