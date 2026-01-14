@@ -41,7 +41,7 @@ class TestToolFiltering:
 
         # Check for service tools with underscore notation
         assert any('kokoro_' in tool for tool in tools)
-        assert any('whisper_' in tool for tool in tools)
+        # Note: whisper tools have been removed in TTS-only fork
 
     def test_parse_tool_list(self):
         """Test parsing of comma-separated tool lists."""
@@ -79,14 +79,14 @@ class TestToolFiltering:
         """Test VOICEMODE_TOOLS_DISABLED blacklist mode."""
         from voice_mode.tools import determine_tools_to_load, get_all_available_tools
 
-        os.environ['VOICEMODE_TOOLS_DISABLED'] = "kokoro_install,whisper_install"
+        os.environ['VOICEMODE_TOOLS_DISABLED'] = "kokoro_install,kokoro_uninstall"
 
         tools, mode = determine_tools_to_load()
         all_tools = get_all_available_tools()
 
         assert "blacklist mode" in mode
         assert "kokoro_install" not in tools
-        assert "whisper_install" not in tools
+        assert "kokoro_uninstall" not in tools
         assert "converse" in tools  # Other tools should be present
         assert len(tools) == len(all_tools) - 2  # All tools minus the excluded ones
 
@@ -248,11 +248,11 @@ print(','.join(sorted(tools_to_load)))
         """Test that tools are excluded when running as subprocess."""
         test_script = '''
 import os
-os.environ['VOICEMODE_TOOLS_DISABLED'] = 'kokoro_install,whisper_install'
+os.environ['VOICEMODE_TOOLS_DISABLED'] = 'kokoro_install,kokoro_uninstall'
 import voice_mode.tools
 from voice_mode.tools import tools_to_load
 # Check that disabled tools are not in the loaded set
-disabled = {'kokoro_install', 'whisper_install'}
+disabled = {'kokoro_install', 'kokoro_uninstall'}
 loaded = voice_mode.tools.tools_to_load
 assert not (disabled & loaded), f"Disabled tools found: {disabled & loaded}"
 print("SUCCESS")

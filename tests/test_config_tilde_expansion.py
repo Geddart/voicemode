@@ -46,22 +46,20 @@ class TestConfigTildeExpansion(unittest.TestCase):
         test_env = {
             "VOICEMODE_BASE_DIR": "~/test-voicemode",
             "VOICEMODE_MODELS_DIR": "~/models",
-            "VOICEMODE_WHISPER_MODEL_PATH": "~/whisper",
             "VOICEMODE_KOKORO_MODELS_DIR": "~/kokoro/models",
             "VOICEMODE_KOKORO_CACHE_DIR": "~/kokoro/cache"
         }
-        
+
         with patch.dict(os.environ, test_env, clear=False):
             # Import config module (this will use the patched environment)
             import importlib
             import voice_mode.config as config
             importlib.reload(config)
-            
+
             # Check that all paths are properly expanded
             home = Path.home()
             self.assertEqual(config.BASE_DIR, home / "test-voicemode")
             self.assertEqual(config.MODELS_DIR, home / "models")
-            self.assertEqual(config.WHISPER_MODEL_PATH, home / "whisper")
             self.assertEqual(config.KOKORO_MODELS_DIR, home / "kokoro" / "models")
             self.assertEqual(config.KOKORO_CACHE_DIR, home / "kokoro" / "cache")
     

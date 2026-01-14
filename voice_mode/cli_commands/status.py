@@ -2,6 +2,8 @@
 
 Shows complete state of VoiceMode - how it's running, which services are available,
 and their configuration in a single view.
+
+Note: This is a TTS-only version (Whisper STT has been removed).
 """
 
 import asyncio
@@ -19,9 +21,7 @@ from typing import Any, Dict, List, Literal, Optional
 import click
 
 from voice_mode.config import (
-    WHISPER_PORT,
     KOKORO_PORT,
-    LIVEKIT_PORT,
     TTS_VOICES,
     OPENAI_API_KEY,
     env_bool,
@@ -42,7 +42,7 @@ class ServiceStatus(str, Enum):
 class ServiceInfo:
     """Information about a service."""
     name: str
-    type: str  # "tts" or "stt"
+    type: str  # "tts"
     status: ServiceStatus
     port: Optional[int] = None
     details: Optional[Dict[str, Any]] = None
@@ -65,7 +65,6 @@ class StatusData:
     version: str
     runtime: Dict[str, str]
     tts: Dict[str, Any]
-    stt: Dict[str, Any]
     config: Dict[str, Any]
     dependencies: Dict[str, bool]
 
@@ -181,106 +180,6 @@ def format_memory(bytes_val: float) -> str:
     return f"{mb:.0f} MB"
 
 
-def check_whisper_service() -> ServiceInfo:
-    """Check Whisper (STT) service status."""
-    status, proc = check_service_status(WHISPER_PORT)
-
-    # Check if installed - try multiple paths
-    voicemode_dir = Path.home() / ".voicemode"
-    whisper_dir = voicemode_dir / "services" / "whisper"
-    whisper_bin_paths = [
-        whisper_dir / "build" / "bin" / "whisper-server",  # Direct build
-        whisper_dir / "whisper.cpp" / "build" / "bin" / "whisper-server",  # Subdir build
-    ]
-    is_installed = any(p.exists() for p in whisper_bin_paths)
-
-    # Check auto-start configuration
-    auto_start = False
-    if platform.system() == "Darwin":
-        plist_path = Path.home() / "Library" / "LaunchAgents" / "com.voicemode.whisper.plist"
-        auto_start = plist_path.exists()
-    else:
-        service_path = Path.home() / ".config" / "systemd" / "user" / "voicemode-whisper.service"
-        auto_start = service_path.exists()
-
-    if not is_installed:
-        return ServiceInfo(
-            name="Whisper",
-            type="stt",
-            status=ServiceStatus.NOT_INSTALLED,
-            port=WHISPER_PORT,
-            auto_start=auto_start
-        )
-
-    if status == "local":
-        # Get additional details
-        details = {}
-        try:
-            cmdline = proc.cmdline()
-            for i, arg in enumerate(cmdline):
-                if arg == "--model" and i + 1 < len(cmdline):
-                    model_path = Path(cmdline[i + 1])
-                    model_name = model_path.stem
-                    if model_name.startswith("ggml-"):
-                        model_name = model_name[5:]
-                    if model_name.endswith(".bin"):
-                        model_name = model_name[:-4]
-                    details["model"] = model_name
-                    break
-
-            # Check for CoreML
-            if platform.machine() == "arm64" and platform.system() == "Darwin":
-                from voice_mode.utils.services.whisper_version import check_coreml_model_exists
-                if details.get("model") and check_coreml_model_exists(details["model"]):
-                    details["coreml"] = True
-
-            # Get memory and uptime
-            with proc.oneshot():
-                memory_info = proc.memory_info()
-                details["memory"] = format_memory(memory_info.rss)
-                create_time = proc.create_time()
-                uptime_seconds = time.time() - create_time
-                details["uptime"] = format_uptime(uptime_seconds)
-
-            # Try to get version info
-            try:
-                from voice_mode.utils.services.whisper_version import get_whisper_version_info
-                version_info = get_whisper_version_info()
-                if version_info.get("version"):
-                    details["version"] = version_info["version"]
-            except Exception:
-                pass
-        except Exception:
-            pass
-
-        return ServiceInfo(
-            name="Whisper",
-            type="stt",
-            status=ServiceStatus.RUNNING,
-            port=WHISPER_PORT,
-            details=details,
-            auto_start=auto_start,
-            health="healthy"
-        )
-    elif status == "forwarded":
-        return ServiceInfo(
-            name="Whisper",
-            type="stt",
-            status=ServiceStatus.FORWARDED,
-            port=WHISPER_PORT,
-            auto_start=auto_start,
-            health="healthy"
-        )
-    else:
-        return ServiceInfo(
-            name="Whisper",
-            type="stt",
-            status=ServiceStatus.NOT_RUNNING,
-            port=WHISPER_PORT,
-            auto_start=auto_start
-        )
-
-
 def check_kokoro_service() -> ServiceInfo:
     """Check Kokoro (TTS) service status."""
     status, proc = check_service_status(KOKORO_PORT)
@@ -367,31 +266,17 @@ def check_openai_api() -> Dict[str, Any]:
     return {
         "status": "available" if api_key_set else "not_configured",
         "api_key_set": api_key_set,
-        "tts_model": "tts-1-hd",
-        "stt_model": "whisper-1"
+        "tts_model": "tts-1-hd"
     }
 
 
-def get_active_providers(whisper: ServiceInfo, kokoro: ServiceInfo, openai: Dict[str, Any]) -> Dict[str, str]:
-    """Determine active TTS and STT providers."""
-    # Determine active TTS
-    tts_active = "none"
+def get_active_tts_provider(kokoro: ServiceInfo, openai: Dict[str, Any]) -> str:
+    """Determine active TTS provider."""
     if kokoro.status == ServiceStatus.RUNNING or kokoro.status == ServiceStatus.FORWARDED:
-        tts_active = "kokoro"
+        return "kokoro"
     elif openai["status"] == "available":
-        tts_active = "openai"
-
-    # Determine active STT
-    stt_active = "none"
-    if whisper.status == ServiceStatus.RUNNING or whisper.status == ServiceStatus.FORWARDED:
-        stt_active = "whisper"
-    elif openai["status"] == "available":
-        stt_active = "openai"
-
-    return {
-        "tts": tts_active,
-        "stt": stt_active
-    }
+        return "openai"
+    return "none"
 
 
 def get_config_info() -> Dict[str, Any]:
@@ -413,12 +298,11 @@ def collect_status_data() -> Dict[str, Any]:
     from voice_mode.version import __version__
 
     # Check services
-    whisper = check_whisper_service()
     kokoro = check_kokoro_service()
     openai = check_openai_api()
 
-    # Get active providers
-    active = get_active_providers(whisper, kokoro, openai)
+    # Get active TTS provider
+    tts_active = get_active_tts_provider(kokoro, openai)
 
     # Check dependencies
     ffmpeg = check_ffmpeg()
@@ -435,7 +319,7 @@ def collect_status_data() -> Dict[str, Any]:
             "command": "uvx voice-mode"
         },
         "tts": {
-            "active": active["tts"],
+            "active": tts_active,
             "providers": {
                 "kokoro": {
                     "status": kokoro.status.value,
@@ -451,26 +335,6 @@ def collect_status_data() -> Dict[str, Any]:
                     "status": openai["status"],
                     "api_key_set": openai["api_key_set"],
                     "model": openai["tts_model"]
-                }
-            }
-        },
-        "stt": {
-            "active": active["stt"],
-            "providers": {
-                "whisper": {
-                    "status": whisper.status.value,
-                    "port": whisper.port,
-                    "model": whisper.details.get("model") if whisper.details else None,
-                    "coreml": whisper.details.get("coreml", False) if whisper.details else False,
-                    "version": whisper.details.get("version") if whisper.details else None,
-                    "memory": whisper.details.get("memory") if whisper.details else None,
-                    "uptime": whisper.details.get("uptime") if whisper.details else None,
-                    "auto_start": whisper.auto_start,
-                    "health": whisper.health
-                },
-                "openai": {
-                    "status": openai["status"],
-                    "api_key_set": openai["api_key_set"]
                 }
             }
         },
@@ -530,23 +394,6 @@ def format_terminal_output(data: Dict[str, Any], use_colors: bool = True) -> str
             return "Not configured"
         return status.replace("_", " ").title()
 
-    # Whisper (STT)
-    whisper = data["stt"]["providers"]["whisper"]
-    lines.append("── Whisper (STT) " + "─" * 28)
-    sym = status_symbol(whisper["status"])
-    lines.append(f"  Status:     {sym} {format_status_text(whisper['status'])}" + (f" (port {whisper['port']})" if whisper["status"] == "running" else ""))
-    if whisper.get("model"):
-        model_info = whisper["model"]
-        if whisper.get("coreml"):
-            model_info += " (CoreML)"
-        lines.append(f"  Model:      {model_info}")
-    if whisper.get("version"):
-        lines.append(f"  Version:    {whisper['version']}")
-    if whisper.get("memory") and whisper.get("uptime"):
-        lines.append(f"  Resources:  {whisper['memory']}, up {whisper['uptime']}")
-    lines.append(f"  Auto-start: {'enabled' if whisper.get('auto_start') else 'disabled'}")
-    lines.append("")
-
     # Kokoro (TTS)
     kokoro = data["tts"]["providers"]["kokoro"]
     lines.append("── Kokoro (TTS) " + "─" * 29)
@@ -571,21 +418,16 @@ def format_terminal_output(data: Dict[str, Any], use_colors: bool = True) -> str
         lines.append(f"  TTS Model:  {openai['model']}")
     lines.append("")
 
-    # Active Providers
-    lines.append("── Active Providers " + "─" * 25)
+    # Active Provider
+    lines.append("── Active Provider " + "─" * 26)
     tts_active = data["tts"]["active"]
-    stt_active = data["stt"]["active"]
 
     tts_text = tts_active.title() if tts_active != "none" else "None available"
-    stt_text = stt_active.title() if stt_active != "none" else "None available"
 
     if tts_active == "kokoro":
         tts_text += " (local preferred)"
-    if stt_active == "whisper":
-        stt_text += " (local preferred)"
 
     lines.append(f"  TTS: {tts_text}")
-    lines.append(f"  STT: {stt_text}")
     lines.append("")
 
     # Dependencies
@@ -642,25 +484,9 @@ def format_markdown_output(data: Dict[str, Any]) -> str:
         openai_details.append(f"Model: {openai['model']}")
     lines.append(f"| OpenAI | TTS | {'✓' if openai['status'] == 'available' else '✗'} {openai['status'].replace('_', ' ').title()} | {', '.join(openai_details) if openai_details else '-'} |")
 
-    # Whisper
-    whisper = data["stt"]["providers"]["whisper"]
-    whisper_details = []
-    if whisper["status"] == "running":
-        whisper_details.append(f"Port {whisper['port']}")
-    if whisper.get("model"):
-        model_info = whisper["model"]
-        if whisper.get("coreml"):
-            model_info += " (CoreML)"
-        whisper_details.append(f"Model: {model_info}")
-    lines.append(f"| Whisper | STT | {'✓' if whisper['status'] in ['running', 'forwarded'] else '✗'} {whisper['status'].replace('_', ' ').title()} | {', '.join(whisper_details) if whisper_details else '-'} |")
-
-    # OpenAI STT
-    openai_stt = data["stt"]["providers"]["openai"]
-    lines.append(f"| OpenAI | STT | {'✓' if openai_stt['status'] == 'available' else '✗'} {openai_stt['status'].replace('_', ' ').title()} | {'API key set' if openai_stt['api_key_set'] else '-'} |")
-
     lines.append("")
-    lines.append(f"Active: TTS={data['tts']['active'].title()}, STT={data['stt']['active'].title()}" +
-                 (" (local preferred)" if data['tts']['active'] in ['kokoro'] or data['stt']['active'] in ['whisper'] else ""))
+    lines.append(f"Active TTS: {data['tts']['active'].title()}" +
+                 (" (local preferred)" if data['tts']['active'] == 'kokoro' else ""))
     lines.append("")
 
     lines.append("## Configuration")
@@ -698,9 +524,9 @@ def status(output_format: Optional[str], no_color: bool):
     """Show unified VoiceMode status.
 
     Displays the complete state of VoiceMode including:
-    - Service status (Whisper STT, Kokoro TTS)
+    - Service status (Kokoro TTS)
     - OpenAI API availability
-    - Active providers
+    - Active TTS provider
     - System dependencies
     - Configuration
 

@@ -1,5 +1,7 @@
 """
-Tests for the unified service management tool
+Tests for the unified service management tool.
+
+Note: This is a TTS-only version (Whisper STT has been removed).
 """
 import os
 import sys
@@ -18,25 +20,15 @@ from voice_mode.tools.service import service as service_tool
 service = service_tool.fn
 
 # Import prompts for testing
-from voice_mode.prompts.services import whisper_prompt as whisper_prompt_tool
 from voice_mode.prompts.services import kokoro_prompt as kokoro_prompt_tool
 
 # Extract the actual functions from FastMCP prompt wrappers
-whisper_prompt = whisper_prompt_tool.fn
 kokoro_prompt = kokoro_prompt_tool.fn
 
 
 class TestUnifiedServiceTool:
-    """Test cases for the unified service management tool"""
-    
-    @pytest.mark.asyncio
-    async def test_status_service_not_running(self):
-        """Test status when service is not running"""
-        with patch('voice_mode.tools.service.check_service_status', return_value=("not_available", None)):
-            result = await service("whisper", "status")
-            assert "not available" in result.lower()
-            # The actual implementation doesn't include port in "not available" message
-    
+    """Test cases for the unified service management tool (Kokoro only)"""
+
     @pytest.mark.asyncio
     async def test_status_service_running(self):
         """Test status when service is running"""
@@ -46,18 +38,18 @@ class TestUnifiedServiceTool:
         mock_proc.cpu_percent.return_value = 15.5
         mock_proc.memory_info.return_value = MagicMock(rss=100 * 1024 * 1024)  # 100 MB
         mock_proc.create_time.return_value = 1000000000
-        mock_proc.cmdline.return_value = ["whisper-server", "--model", "model.bin"]
-        
+        mock_proc.cmdline.return_value = ["uvicorn", "api.src.main:app"]
+
         with patch('voice_mode.tools.service.check_service_status', return_value=("local", mock_proc)), \
              patch('time.time', return_value=1000001000):  # 1000 seconds later
-            result = await service("whisper", "status")
+            result = await service("kokoro", "status")
             assert "✅" in result
             assert "is running" in result
             assert "PID: 12345" in result
             assert "CPU: 15.5%" in result
             assert "Memory: 100.0 MB" in result
             assert "16m 40s" in result  # uptime
-    
+
     @pytest.mark.asyncio
     async def test_start_service_already_running(self):
         """Test starting a service that's already running"""
@@ -65,49 +57,15 @@ class TestUnifiedServiceTool:
         with patch('voice_mode.tools.service.find_process_by_port', return_value=mock_proc):
             result = await service("kokoro", "start")
             assert "already running" in result
-    
-    @pytest.mark.asyncio
-    async def test_start_whisper_service(self):
-        """Test starting whisper service"""
-        with patch('voice_mode.tools.service.find_process_by_port', side_effect=[None, MagicMock()]), \
-             patch('voice_mode.tools.service.find_whisper_server', return_value="/path/to/whisper-server"), \
-             patch('voice_mode.tools.service.find_whisper_model', return_value="/path/to/model.bin"), \
-             patch('subprocess.Popen') as mock_popen, \
-             patch('subprocess.run') as mock_run, \
-             patch('pathlib.Path.exists', return_value=False), \
-             patch('asyncio.sleep'):
-            
-            mock_process = MagicMock()
-            mock_process.poll.return_value = None
-            mock_process.pid = 12345
-            mock_process.communicate.return_value = (b"", b"")
-            mock_popen.return_value = mock_process
-            mock_run.return_value = MagicMock(returncode=0)
-            
-            result = await service("whisper", "start")
-            assert "✅" in result
-            assert "started successfully" in result
-            assert "PID: 12345" in result
-    
-    @pytest.mark.asyncio
-    async def test_start_whisper_missing_binary(self):
-        """Test starting whisper when binary is missing"""
-        with patch('voice_mode.tools.service.find_process_by_port', return_value=None), \
-             patch('voice_mode.tools.service.find_whisper_server', return_value=None), \
-             patch('pathlib.Path.exists', return_value=False):
-            result = await service("whisper", "start")
-            assert "❌" in result
-            assert "not found" in result
-            assert "whisper_install" in result
-    
+
     @pytest.mark.asyncio
     async def test_stop_service_not_running(self):
         """Test stopping a service that's not running"""
         with patch('voice_mode.tools.service.find_process_by_port', return_value=None), \
              patch('pathlib.Path.exists', return_value=False):
-            result = await service("whisper", "stop")
+            result = await service("kokoro", "stop")
             assert "not running" in result.lower()
-    
+
     @pytest.mark.asyncio
     async def test_stop_service_success(self):
         """Test successfully stopping a service"""
@@ -115,7 +73,7 @@ class TestUnifiedServiceTool:
         mock_proc.pid = 12345
         mock_proc.terminate = MagicMock()
         mock_proc.wait = MagicMock()
-        
+
         # Mock platform and service files to force fallback to process termination
         with patch('voice_mode.tools.service.find_process_by_port', return_value=mock_proc), \
              patch('platform.system', return_value='Darwin'), \
@@ -125,61 +83,7 @@ class TestUnifiedServiceTool:
             assert "stopped" in result
             assert "was PID: 12345" in result
             mock_proc.terminate.assert_called_once()
-    
-    @pytest.mark.asyncio
-    async def test_restart_service(self):
-        """Test restarting a service"""
-        with patch('voice_mode.tools.service.stop_service', return_value="✅ Service stopped"), \
-             patch('voice_mode.tools.service.start_service', return_value="✅ Service started"), \
-             patch('asyncio.sleep'):
-            result = await service("whisper", "restart")
-            assert "Restart whisper:" in result
-            assert "✅ Service stopped" in result
-            assert "✅ Service started" in result
-    
-    @pytest.mark.asyncio
-    async def test_enable_service_macos(self):
-        """Test enabling service on macOS"""
-        with patch('platform.system', return_value='Darwin'), \
-             patch('voice_mode.tools.service.get_installed_service_version', return_value="1.0.0"), \
-             patch('voice_mode.tools.service.load_service_file_version', return_value="1.0.0"), \
-             patch('voice_mode.tools.service.load_service_template', return_value="template content") as mock_template, \
-             patch('voice_mode.tools.service.find_whisper_server', return_value="/Users/test/.voicemode/services/whisper/build/bin/whisper-server"), \
-             patch('voice_mode.tools.service.find_whisper_model', return_value="/path/to/model.bin"), \
-             patch('pathlib.Path.exists', return_value=True), \
-             patch('pathlib.Path.mkdir'), \
-             patch('pathlib.Path.write_text'), \
-             patch('pathlib.Path.exists', return_value=True), \
-             patch('pathlib.Path.home') as mock_home, \
-             patch('subprocess.run') as mock_run:
-            
-            # Mock the template content with proper format string (v1.2.0+ uses START_SCRIPT and HOME)
-            mock_template.return_value = """<?xml version="1.0" encoding="UTF-8"?>
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.voicemode.whisper</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>{START_SCRIPT}</string>
-    </array>
-    <key>StandardOutPath</key>
-    <string>{HOME}/.voicemode/logs/whisper/whisper.out.log</string>
-</dict>
-</plist>"""
-            
-            # Mock home directory to isolated test location
-            mock_home.return_value = Path("/tmp/test_home")
-            
-            # Mock subprocess.run to avoid real system calls
-            # This prevents any launchctl/systemctl commands from affecting real system
-            mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-            
-            result = await service("whisper", "enable")
-            assert "✅" in result
-            assert "enabled" in result
-            assert "will start automatically at login" in result
-    
+
     @pytest.mark.asyncio
     async def test_enable_service_linux(self):
         """Test enabling service on Linux"""
@@ -201,144 +105,68 @@ class TestUnifiedServiceTool:
             result = await service("kokoro", "enable")
             assert "✅" in result
             assert "enabled and started" in result
-            
+
             # Verify systemctl commands were called
             assert any("daemon-reload" in str(call) for call in mock_run.call_args_list)
             assert any("enable" in str(call) for call in mock_run.call_args_list)
             assert any("start" in str(call) for call in mock_run.call_args_list)
-    
-    @pytest.mark.asyncio
-    async def test_disable_service_macos(self):
-        """Test disabling service on macOS"""
-        with patch('platform.system', return_value='Darwin'), \
-             patch('pathlib.Path.exists', return_value=True), \
-             patch('pathlib.Path.unlink'), \
-             patch('subprocess.run') as mock_run:
-            
-            mock_run.return_value = MagicMock(returncode=0)
-            
-            result = await service("whisper", "disable")
-            assert "✅" in result
-            assert "disabled and removed" in result
-    
+
     @pytest.mark.asyncio
     async def test_disable_service_not_installed(self):
         """Test disabling service that's not installed"""
         with patch('platform.system', return_value='Darwin'), \
              patch('pathlib.Path.exists', return_value=False):
-            
-            result = await service("whisper", "disable")
+
+            result = await service("kokoro", "disable")
             assert "not installed" in result
-    
-    @pytest.mark.asyncio
-    async def test_view_logs_macos(self):
-        """Test viewing logs on macOS"""
-        with patch('platform.system', return_value='Darwin'), \
-             patch('subprocess.run') as mock_run:
-            
-            log_output = "2024-01-15 10:00:00 whisper-server started\n2024-01-15 10:00:01 Listening on port 2022"
-            mock_run.return_value = MagicMock(returncode=0, stdout=log_output)
-            
-            result = await service("whisper", "logs", lines=10)
-            assert "Last 10 log entries" in result
-            assert "whisper-server started" in result
-            assert "Listening on port 2022" in result
-    
+
     @pytest.mark.asyncio
     async def test_view_logs_linux(self):
         """Test viewing logs on Linux"""
         with patch('platform.system', return_value='Linux'), \
              patch('subprocess.run') as mock_run:
-            
+
             journal_output = "Jan 15 10:00:00 systemd[1]: Started voicemode-kokoro.service"
             mock_run.return_value = MagicMock(returncode=0, stdout=journal_output)
-            
+
             result = await service("kokoro", "logs", lines=20)
             assert "Last 20 journal entries" in result
             assert "Started voicemode-kokoro.service" in result
-    
-    @pytest.mark.asyncio
-    async def test_view_logs_fallback_to_files(self):
-        """Test fallback to log files when system logs unavailable"""
-        with patch('platform.system', return_value='Darwin'), \
-             patch('subprocess.run') as mock_run, \
-             patch('pathlib.Path.exists', side_effect=[True, True]), \
-             patch('builtins.open', mock_open(read_data="Log line 1\nLog line 2\n")):
-            
-            mock_run.return_value = MagicMock(returncode=1, stdout="")
-            
-            result = await service("whisper", "logs")
-            assert "stdout" in result
-            assert "Log line 1" in result
-            assert "Log line 2" in result
-    
+
     @pytest.mark.asyncio
     async def test_invalid_action(self):
         """Test invalid action handling"""
-        result = await service("whisper", "invalid_action")  # type: ignore
+        result = await service("kokoro", "invalid_action")  # type: ignore
         assert "❌" in result
         assert "Unknown action" in result
-    
+
+    @pytest.mark.skip(reason="Whisper service removed in TTS-only fork")
     @pytest.mark.asyncio
-    async def test_enable_with_version_mismatch(self):
-        """Test enabling service when installed and file versions differ.
-
-        Note: The enable action regenerates the service file from the template,
-        so version mismatches are resolved by overwriting with current template.
-        """
-        # Template with proper placeholders (v1.2.0+ uses START_SCRIPT and HOME)
-        mock_template_content = "<plist><string>{START_SCRIPT}</string><string>{HOME}</string></plist>"
-
-        with patch('platform.system', return_value='Darwin'), \
-             patch('voice_mode.tools.service.get_installed_service_version', return_value="1.0.0"), \
-             patch('voice_mode.tools.service.load_service_file_version', return_value="1.1.0"), \
-             patch('voice_mode.tools.service.load_service_template', return_value=mock_template_content), \
-             patch('voice_mode.tools.service.find_whisper_server', return_value="/Users/test/.voicemode/services/whisper/build/bin/whisper-server"), \
-             patch('voice_mode.tools.service.find_whisper_model', return_value="/path/to/model.bin"), \
-             patch('pathlib.Path.exists', return_value=True), \
-             patch('pathlib.Path.mkdir'), \
-             patch('pathlib.Path.write_text') as mock_write, \
-             patch('subprocess.run') as mock_run:
-
-            mock_run.return_value = MagicMock(returncode=0)
-
-            result = await service("whisper", "enable")
-
-            # Verify service was enabled successfully despite version mismatch
-            assert "✅" in result
-            assert "enabled" in result
-            # Verify service file was written (regenerated from template)
-            mock_write.assert_called_once()
+    async def test_invalid_service_name(self):
+        """Test that invalid service names are rejected"""
+        pass
 
 
 class TestServicePrompts:
     """Test service-specific prompts"""
-    
-    def test_whisper_prompt_valid_action(self):
-        """Test whisper prompt with valid action"""
-        result = whisper_prompt("status")
-        assert "service tool" in result
-        assert "service_name='whisper'" in result
-        assert "action='status'" in result
-    
-    def test_whisper_prompt_logs_action(self):
-        """Test whisper prompt for logs action"""
-        result = whisper_prompt("logs")
-        assert "service tool" in result
-        assert "action='logs'" in result
-    
-    def test_whisper_prompt_invalid_action(self):
-        """Test whisper prompt with invalid action"""
-        result = whisper_prompt("invalid")
-        assert "Invalid action" in result
-        assert "Use one of:" in result
-    
+
     def test_kokoro_prompt_valid_action(self):
         """Test kokoro prompt with valid action"""
         result = kokoro_prompt("start")
         assert "service tool" in result
         assert "service_name='kokoro'" in result
         assert "action='start'" in result
+
+    def test_kokoro_prompt_invalid_action(self):
+        """Test kokoro prompt with invalid action"""
+        result = kokoro_prompt("invalid")
+        assert "Invalid action" in result
+        assert "Use one of:" in result
+
+    def test_kokoro_prompt_install_action(self):
+        """Test kokoro prompt with install action"""
+        result = kokoro_prompt("install")
+        assert "kokoro_install" in result
 
 
 if __name__ == "__main__":
