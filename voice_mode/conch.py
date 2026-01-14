@@ -38,31 +38,40 @@ class Conch:
     is active. The lock file contains:
     - pid: Process ID of the lock holder (for stale lock detection)
     - agent: Name of the agent holding the lock
+    - project: Name of the project/Claude Code window
     - acquired: ISO timestamp when lock was acquired
     - expires: Optional expiry time (reserved for future use)
     """
 
     LOCK_FILE = Path.home() / ".voicemode" / "conch"
 
-    def __init__(self, agent_name: Optional[str] = None):
-        """Initialize Conch with optional agent name.
+    def __init__(self, agent_name: Optional[str] = None, project_name: Optional[str] = None):
+        """Initialize Conch with optional agent and project names.
 
         Args:
             agent_name: Name of the agent (e.g., "cora"). Used for debugging/logging.
+            project_name: Name of the project/window. Auto-detected if not specified.
         """
         self.agent_name = agent_name
+        self.project_name = project_name
         self._acquired = False
 
-    def acquire(self, agent_name: Optional[str] = None) -> bool:
+    def acquire(self, agent_name: Optional[str] = None, project_name: Optional[str] = None) -> bool:
         """Create the lock file.
 
         Args:
             agent_name: Override the agent name set in __init__
+            project_name: Override the project name set in __init__
 
         Returns:
             True if lock was acquired successfully
         """
         agent = agent_name or self.agent_name or "unknown"
+        project = project_name or self.project_name
+        if project is None:
+            # Auto-detect project name
+            from .config import PROJECT_NAME
+            project = PROJECT_NAME
 
         # Ensure parent directory exists
         self.LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -70,6 +79,7 @@ class Conch:
         data = {
             "pid": os.getpid(),
             "agent": agent,
+            "project": project,
             "acquired": datetime.now().isoformat(),
             "expires": None
         }

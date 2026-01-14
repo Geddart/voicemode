@@ -7,19 +7,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Read [conversation.md](conversation.md) for full debugging context.**
 
 ### Quick Status (January 14, 2026)
-- **Goal:** Get VoiceMode MCP server working with Claude Code for TTS-only mode
+- **Goal:** Get background TTS and startup chime features working
 - **User Setup:** Wispr Flow handles voice input, VoiceMode provides voice output via Kokoro TTS
-- **Status:** Fixed critical Python module identity bug that caused 0 tools to be visible
-- **Next Step:** Restart Claude Code and verify MCP connection + test `converse` tool
+- **Status:** Background TTS works (with chime disabled). Chime causes segfault due to concurrent audio.
+- **Next Step:** Fix concurrent audio playback so chime + TTS can play together
 
-### Key Fix Applied
-When running `python -m voice_mode.server`, Python creates TWO module instances (`__main__` and `voice_mode.server`) with separate `mcp` objects. Tools registered on one, but `main()` ran the other. Fixed in server.py lines 23-28 by ensuring module identity before tool imports.
+### Current Issues
+1. **Startup chime segfaults** - Two NonBlockingAudioPlayer instances crash sounddevice
+2. **Pling.m4a too long** - 3.78 seconds, should be < 1 second
+3. **MCP server caches code** - Must restart Claude Code to pick up changes
+
+## Debugging Protocol
+
+**IMPORTANT:** When debugging, update [conversation.md](conversation.md) with:
+- What you tried and the results
+- Error messages and exit codes
+- Current theories and next steps
+- Test commands that work/fail
+
+This preserves context across sessions when conversation runs out of context.
 
 ## Voice Interaction
 
-**Always speak responses using the `mcp__voicemode__converse` tool.** The user uses Wispr Flow for voice input, so provide voice output for a natural conversation flow.
-
-Load the voicemode skill for extended voice conversation support: `/voicemode:voicemode`
+Load the voicemode skill for voice conversation support: `/voicemode:voicemode`
 
 ## Project Overview
 

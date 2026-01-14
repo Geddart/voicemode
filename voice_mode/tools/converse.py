@@ -393,7 +393,7 @@ async def text_to_speech_with_failover(
 ) -> Tuple[bool, Optional[dict], Optional[dict]]:
     """
     Text to speech with automatic failover to next available endpoint.
-    
+
     Returns:
         Tuple of (success, tts_metrics, tts_config)
     """
@@ -417,6 +417,66 @@ async def text_to_speech_with_failover(
         audio_dir=AUDIO_DIR if SAVE_AUDIO else None,
         speed=speed
     )
+
+
+async def _run_tts_in_background(
+    message: str,
+    voice: Optional[str],
+    tts_model: Optional[str],
+    tts_instructions: Optional[str],
+    audio_format: Optional[str],
+    tts_provider: Optional[str],
+    speed: Optional[float],
+    was_queued: bool = False
+) -> None:
+    """
+    Run TTS in background without blocking the caller.
+
+    This function is spawned as an asyncio task and runs independently.
+    It handles all TTS operations including generation, playback, and logging.
+
+    Args:
+        was_queued: If True, this message had to wait for another to finish.
+                   Will prepend "Message from {project}:" announcement.
+    """
+    from voice_mode.conch import Conch
+    from voice_mode.config import PROJECT_NAME
+    conch = Conch()
+
+    try:
+        # Acquire conch for this background operation
+        conch.acquire()
+
+        # If this message was queued, prepend project announcement
+        if was_queued:
+            message = f"Message from {PROJECT_NAME}: {message}"
+            logger.info(f"Background TTS (queued) starting: '{message[:60]}...'")
+        else:
+            logger.info(f"Background TTS starting: '{message[:50]}...'")
+
+        # Run TTS - playback is already non-blocking in core.py when background=True
+        tts_success, tts_metrics, tts_config = await text_to_speech_with_failover(
+            message=message,
+            voice=voice,
+            model=tts_model,
+            instructions=tts_instructions,
+            audio_format=audio_format,
+            initial_provider=tts_provider,
+            speed=speed,
+            background=True  # Non-blocking playback
+        )
+
+        if tts_success:
+            gen_time = tts_metrics.get('generation', 0) if tts_metrics else 0
+            logger.info(f"Background TTS completed: gen={gen_time:.1f}s")
+        else:
+            logger.warning("Background TTS failed")
+
+    except Exception as e:
+        logger.error(f"Background TTS error: {e}")
+    finally:
+        # Release conch when done
+        conch.release()
 
 
 def prepare_audio_for_stt(audio_data: np.ndarray, output_format: str = "mp3") -> bytes:
@@ -1078,7 +1138,8 @@ async def converse(
     speed: Optional[float] = None,
     tts_model: Optional[str] = None,
     tts_instructions: Optional[str] = None,
-    background: bool = False
+    background: bool = True,
+    queue: bool = True
 ) -> str:
     """Speak a message using text-to-speech.
 
@@ -1087,8 +1148,10 @@ async def converse(
         voice: TTS voice name (auto-selected if not specified)
         speed: Speech rate 0.25-4.0 (default: 1.0)
         tts_provider: "openai" or "kokoro" (auto-selected if not specified)
-        background: If True, start playback and return immediately (default: False).
-                   Audio plays while Claude continues working.
+        background: If True, start playback and return immediately (default: True).
+                   Audio plays while Claude continues working. Set to False to wait.
+        queue: If True, wait for other audio to finish before playing (default: True).
+               When queued, announces which project the message is from.
     """
     # TTS-only mode: hardcode these values
     wait_for_response = False
@@ -1103,7 +1166,8 @@ async def converse(
     chime_leading_silence = None
     chime_trailing_silence = None
     metrics_level = None
-    wait_for_conch = False
+    wait_for_conch = queue  # Map queue parameter to wait_for_conch
+    was_queued = False  # Track if message had to wait for another
     # Convert string booleans to actual booleans
     if isinstance(wait_for_response, str):
         wait_for_response = wait_for_response.lower() in ('true', '1', 'yes', 'on')
@@ -1241,10 +1305,13 @@ async def converse(
 
             if not wait_for_conch:
                 # Default: return immediately with status info
-                return (f"User is currently speaking with {holder_agent}. "
-                        "Use wait_for_conch=true to queue, or try again later.")
+                holder_project = holder.get('project', 'unknown') if holder else 'unknown'
+                return (f"User is currently speaking with {holder_agent} ({holder_project}). "
+                        "Use queue=true to wait, or try again later.")
             else:
-                # Polling wait mode
+                # Polling wait mode - wait for other audio to finish
+                holder_project = holder.get('project', 'unknown') if holder else 'unknown'
+                logger.info(f"Queuing message - waiting for {holder_agent} ({holder_project}) to finish")
                 waited = 0.0
                 while Conch.is_active() and waited < CONCH_TIMEOUT:
                     await asyncio.sleep(CONCH_CHECK_INTERVAL)
@@ -1253,6 +1320,30 @@ async def converse(
                 if Conch.is_active():  # Still busy after timeout
                     return f"Timed out waiting for conch ({CONCH_TIMEOUT}s). {holder_agent} is still speaking."
 
+                # Successfully waited - mark as queued so we announce project name
+                was_queued = True
+                logger.info(f"Conch acquired after waiting {waited:.1f}s")
+
+        # Handle true background mode: spawn TTS as independent task and return immediately
+        # This allows Claude to continue working while audio generates and plays
+        if background and not wait_for_response and not should_skip_tts:
+            # Spawn background task - it will handle conch acquisition internally
+            asyncio.create_task(_run_tts_in_background(
+                message=message,
+                voice=voice,
+                tts_model=tts_model,
+                tts_instructions=tts_instructions,
+                audio_format=audio_format,
+                tts_provider=tts_provider,
+                speed=speed,
+                was_queued=was_queued
+            ))
+            logger.info("TTS spawned in background, returning immediately")
+            if was_queued:
+                from voice_mode.config import PROJECT_NAME
+                return f"✓ Speaking in background (queued, will announce as {PROJECT_NAME})"
+            return "✓ Speaking in background"
+
         # Acquire conch to signal voice conversation is active
         # This allows sound effect hooks to check and mute themselves
         conch.acquire()
@@ -1260,6 +1351,13 @@ async def converse(
         # Local microphone approach with timing
         transport = "local"
         timings = {}
+
+        # If this message was queued, prepend project announcement
+        if was_queued:
+            from voice_mode.config import PROJECT_NAME
+            message = f"Message from {PROJECT_NAME}: {message}"
+            logger.info(f"Queued message will be announced as from {PROJECT_NAME}")
+
         try:
             async with audio_operation_lock:
                 # Speak the message

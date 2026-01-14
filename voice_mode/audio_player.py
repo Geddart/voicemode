@@ -7,12 +7,16 @@ concurrent audio streams without blocking or interference.
 import logging
 import queue
 import threading
-from typing import Optional
+from typing import List, Optional
 
 import numpy as np
 import sounddevice as sd
 
 logger = logging.getLogger("voicemode.audio_player")
+
+# Module-level registry to keep active players alive during non-blocking playback.
+# Without this, players can be garbage collected while still playing, causing segfaults.
+_active_players: List["NonBlockingAudioPlayer"] = []
 
 
 class NonBlockingAudioPlayer:
@@ -40,6 +44,22 @@ class NonBlockingAudioPlayer:
         self.stream: Optional[sd.OutputStream] = None
         self.playback_complete = threading.Event()
         self.playback_error: Optional[Exception] = None
+        self._registered = False
+
+    def _register(self):
+        """Register this player to stay alive during non-blocking playback."""
+        if not self._registered:
+            _active_players.append(self)
+            self._registered = True
+
+    def _unregister(self):
+        """Unregister this player when playback is done."""
+        if self._registered:
+            try:
+                _active_players.remove(self)
+            except ValueError:
+                pass
+            self._registered = False
 
     def _audio_callback(self, outdata, frames, time_info, status):
         """Callback function called by sounddevice for each audio buffer.
@@ -61,6 +81,7 @@ class NonBlockingAudioPlayer:
             if chunk is None:
                 outdata[:] = 0
                 self.playback_complete.set()
+                self._unregister()
                 raise sd.CallbackStop()
 
             # Fill output buffer
@@ -77,6 +98,7 @@ class NonBlockingAudioPlayer:
                     outdata[chunk_len:] = 0
                 # Mark playback complete after this chunk
                 self.playback_complete.set()
+                self._unregister()
                 raise sd.CallbackStop()
             else:
                 if chunk.ndim == 1:
@@ -140,6 +162,11 @@ class NonBlockingAudioPlayer:
 
             if blocking:
                 self.wait()
+            else:
+                # Register to stay alive during non-blocking playback.
+                # Without this, the player can be garbage collected while
+                # the stream is still running, causing a segfault.
+                self._register()
 
         except Exception as e:
             self.playback_error = e
@@ -165,6 +192,9 @@ class NonBlockingAudioPlayer:
             self.stream.close()
             self.stream = None
 
+        # Unregister from active players
+        self._unregister()
+
         # Raise any error that occurred during playback
         if self.playback_error:
             raise self.playback_error
@@ -176,6 +206,9 @@ class NonBlockingAudioPlayer:
             self.stream.stop()
             self.stream.close()
             self.stream = None
+
+        # Unregister from active players
+        self._unregister()
 
         # Clear queue
         if self.audio_queue:

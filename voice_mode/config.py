@@ -474,6 +474,45 @@ CONCH_TIMEOUT = float(os.getenv("VOICEMODE_CONCH_TIMEOUT", "60"))
 # How often (seconds) to check if conch is free when waiting
 CONCH_CHECK_INTERVAL = float(os.getenv("VOICEMODE_CONCH_CHECK_INTERVAL", "0.5"))
 
+
+def get_project_name() -> str:
+    """
+    Auto-detect the project name for multi-window audio coordination.
+
+    Checks in order:
+    1. CLAUDE_PROJECT_NAME environment variable (explicit override)
+    2. Git repository root folder name
+    3. Current working directory name
+    4. Fallback to "unknown"
+    """
+    import subprocess
+    from pathlib import Path
+
+    # 1. Explicit env var override
+    if name := os.getenv("CLAUDE_PROJECT_NAME"):
+        return name
+
+    # 2. Git repository root folder name
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            timeout=1,
+            cwd=os.getcwd()
+        )
+        if result.returncode == 0:
+            return Path(result.stdout.strip()).name
+    except Exception:
+        pass
+
+    # 3. Current working directory name
+    return Path.cwd().name
+
+
+# Auto-detected project name (cached at import time)
+PROJECT_NAME = get_project_name()
+
 # ==================== SERVICE CONFIGURATION ====================
 
 # OpenAI configuration
