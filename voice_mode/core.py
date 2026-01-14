@@ -207,7 +207,13 @@ async def text_to_speech(
         logger.debug(f"Debug mode enabled, will save audio files")
     
     metrics = {}
-    
+
+    # Play chime to mask TTS generation latency
+    # This plays in background while Kokoro/OpenAI generates the audio
+    from .config import TTS_CHIME_ENABLED, TTS_CHIME_NAME
+    if TTS_CHIME_ENABLED:
+        await play_tts_chime(chime_name=TTS_CHIME_NAME)
+
     # Log TTS start event
     event_logger = get_event_logger()
     if event_logger:
@@ -767,6 +773,58 @@ async def play_system_audio(message_key: str, fallback_text: Optional[str] = Non
         return success
 
     return False
+
+
+async def play_tts_chime(soundfont: str = "default", chime_name: str = "Pling") -> bool:
+    """Play a chime sound when TTS generation starts.
+
+    This plays in the background (non-blocking) to mask TTS processing latency.
+    The chime plays while Kokoro/OpenAI is generating the speech audio.
+
+    Args:
+        soundfont: Name of the soundfont to use (default: "default")
+        chime_name: Name of the chime file without extension (default: "Pling")
+
+    Returns:
+        True if chime started playing successfully, False otherwise
+    """
+    from pathlib import Path
+    from pydub import AudioSegment
+    import numpy as np
+
+    # Get path to chimes directory in soundfonts
+    chimes_dir = Path(__file__).parent / "data" / "soundfonts" / soundfont / "chimes"
+
+    # Try to find the audio file (support multiple formats)
+    audio_file = None
+    for ext in ['.m4a', '.mp3', '.wav', '.opus']:
+        candidate = chimes_dir / f"{chime_name}{ext}"
+        if candidate.exists():
+            audio_file = candidate
+            break
+
+    if not audio_file:
+        logger.debug(f"No chime file found for '{chime_name}' in {chimes_dir}")
+        return False
+
+    try:
+        logger.debug(f"🔔 Playing TTS chime: {audio_file}")
+        audio = AudioSegment.from_file(str(audio_file))
+        samples = np.array(audio.get_array_of_samples(), dtype=np.float32)
+        if audio.channels == 2:
+            samples = samples.reshape((-1, 2))
+        samples = samples / (2**15)  # Normalize to [-1, 1]
+
+        # Use non-blocking audio player - don't wait for playback to finish
+        # This allows the chime to play while TTS generation happens
+        player = NonBlockingAudioPlayer()
+        player.play(samples, audio.frame_rate, blocking=False)
+
+        logger.debug(f"✓ TTS chime started playing in background")
+        return True
+    except Exception as e:
+        logger.debug(f"Failed to play TTS chime: {e}")
+        return False
 
 
 async def cleanup(openai_clients: dict):

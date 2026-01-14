@@ -431,6 +431,11 @@ SAVE_TRANSCRIPTIONS = SAVE_ALL or DEBUG or os.getenv("VOICEMODE_SAVE_TRANSCRIPTI
 # Audio feedback configuration
 AUDIO_FEEDBACK_ENABLED = os.getenv("VOICEMODE_AUDIO_FEEDBACK", "true").lower() in ("true", "1", "yes", "on")
 
+# TTS startup chime configuration
+# Plays a short chime when TTS generation starts to mask processing latency
+TTS_CHIME_ENABLED = os.getenv("VOICEMODE_TTS_CHIME", "true").lower() in ("true", "1", "yes", "on")
+TTS_CHIME_NAME = os.getenv("VOICEMODE_TTS_CHIME_NAME", "Pling")  # Filename without extension
+
 # Skip TTS configuration (skip text-to-speech for faster responses)
 SKIP_TTS = os.getenv("VOICEMODE_SKIP_TTS", "false").lower() in ("true", "1", "yes", "on")
 
