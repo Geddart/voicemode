@@ -1,12 +1,10 @@
 """
-Pronunciation middleware for TTS and STT text processing.
+Pronunciation middleware for TTS text processing.
 
-This module provides regex-based text substitutions to improve TTS pronunciation
-and correct STT transcription errors.
+This module provides regex-based text substitutions to improve TTS pronunciation.
 
-Format: DIRECTION pattern replacement # description
+Format: TTS pattern replacement # description
 Example: TTS \bTali\b Tar-lee # Dog name
-         STT \b3M\b "three M" # Company name
 """
 
 import logging
@@ -54,9 +52,9 @@ def parse_compact_rules(text: str) -> Dict[str, List[PronounceRule]]:
     """
     Parse pronunciation rules from compact format.
 
-    Format: DIRECTION pattern replacement # description
+    Format: TTS pattern replacement # description
     - Lines starting with # are comments (disabled rules)
-    - Direction must be TTS or STT
+    - Direction must be TTS
     - Pattern and replacement can be quoted for spaces
     - Everything after # is the description
 
@@ -64,9 +62,9 @@ def parse_compact_rules(text: str) -> Dict[str, List[PronounceRule]]:
         text: Multi-line string with pronunciation rules
 
     Returns:
-        Dictionary with 'tts' and 'stt' lists of PronounceRule objects
+        Dictionary with 'tts' list of PronounceRule objects
     """
-    rules = {'tts': [], 'stt': []}
+    rules = {'tts': []}
 
     for line_num, line in enumerate(text.splitlines(), 1):
         line = line.strip()
@@ -103,8 +101,8 @@ def parse_compact_rules(text: str) -> Dict[str, List[PronounceRule]]:
         pattern = tokens[1]
         replacement = tokens[2]
 
-        if direction not in ('tts', 'stt'):
-            logger.warning(f"Line {line_num}: Direction must be TTS or STT (case insensitive), got '{tokens[0]}'")
+        if direction != 'tts':
+            logger.warning(f"Line {line_num}: Direction must be TTS (case insensitive), got '{tokens[0]}'")
             continue
 
         rule = PronounceRule(
@@ -122,13 +120,12 @@ def parse_compact_rules(text: str) -> Dict[str, List[PronounceRule]]:
 
 
 class PronounceManager:
-    """Manages pronunciation rules for TTS and STT corrections."""
-    
+    """Manages pronunciation rules for TTS."""
+
     def __init__(self):
         """Initialize the pronunciation rule manager."""
         self.rules: Dict[str, List[PronounceRule]] = {
-            'tts': [],
-            'stt': []
+            'tts': []
         }
         self._load_all_rules()
     
@@ -155,7 +152,7 @@ class PronounceManager:
     
     def _load_all_rules(self):
         """Load rules from environment variables."""
-        self.rules = {'tts': [], 'stt': []}
+        self.rules = {'tts': []}
 
         # Load from environment variables
         rule_texts = self._load_from_env_vars()
@@ -164,11 +161,10 @@ class PronounceManager:
             try:
                 parsed_rules = parse_compact_rules(rule_text)
                 self.rules['tts'].extend(parsed_rules['tts'])
-                self.rules['stt'].extend(parsed_rules['stt'])
             except Exception as e:
                 logger.error(f"Failed to parse pronunciation rules: {e}")
 
-        logger.info(f"Loaded {len(self.rules['tts'])} TTS rules and {len(self.rules['stt'])} STT rules")
+        logger.info(f"Loaded {len(self.rules['tts'])} TTS rules")
     
     def process_tts(self, text: str) -> str:
         """
@@ -190,62 +186,28 @@ class PronounceManager:
 
         return text
 
-    def process_stt(self, text: str) -> str:
+    def list_rules(self) -> List[dict]:
         """
-        Apply STT corrections after transcription.
-
-        Args:
-            text: Text transcribed from speech
-
-        Returns:
-            Corrected text
-        """
-        log_substitutions = os.environ.get('VOICEMODE_PRONUNCIATION_LOG_SUBSTITUTIONS', '').lower() == 'true'
-
-        for rule in self.rules['stt']:
-            original = text
-            text, applied = rule.apply(text)
-            if applied and log_substitutions:
-                logger.info(f"Pronunciation STT: {rule.pattern} → {rule.replacement}: \"{original}\" → \"{text}\"")
-
-        return text
-
-    def list_rules(self, direction: Optional[str] = None) -> List[dict]:
-        """
-        List all rules or rules for specific direction.
-
-        Args:
-            direction: 'tts', 'stt', or None for all
+        List all TTS rules.
 
         Returns:
             List of rule dictionaries
         """
         rules = []
 
-        directions = [direction] if direction else ['tts', 'stt']
-
-        for dir in directions:
-            if dir not in self.rules:
-                continue
-
-            for rule in self.rules[dir]:
-                rules.append({
-                    'direction': dir,
-                    'pattern': rule.pattern,
-                    'replacement': rule.replacement,
-                    'description': rule.description
-                })
+        for rule in self.rules['tts']:
+            rules.append({
+                'direction': 'tts',
+                'pattern': rule.pattern,
+                'replacement': rule.replacement,
+                'description': rule.description
+            })
 
         return rules
-    
-    def test_rule(self, text: str, direction: str = "tts") -> str:
-        """Test what a text would become after applying rules."""
-        if direction == 'tts':
-            return self.process_tts(text)
-        elif direction == 'stt':
-            return self.process_stt(text)
-        else:
-            return text
+
+    def test_rule(self, text: str) -> str:
+        """Test what a text would become after applying TTS rules."""
+        return self.process_tts(text)
     
     def reload_rules(self):
         """Reload all rules from environment variables."""

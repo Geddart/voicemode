@@ -15,7 +15,7 @@ async def current_statistics(type: str = "current") -> str:
     
     Provides real-time access to conversation performance metrics including:
     - Session overview (duration, interaction counts, success rate)
-    - Performance metrics (TTFA, TTS, STT timing statistics)
+    - Performance metrics (TTFA, TTS timing statistics)
     - Provider usage statistics
     - Recent interaction history
     
@@ -52,11 +52,6 @@ async def current_statistics(type: str = "current") -> str:
                     "minimum": stats.min_tts_playback,
                     "maximum": stats.max_tts_playback
                 },
-                "stt_processing": {
-                    "average": stats.avg_stt_processing,
-                    "minimum": stats.min_stt_processing,
-                    "maximum": stats.max_stt_processing
-                },
                 "total_turnaround": {
                     "average": stats.avg_total_time,
                     "minimum": stats.min_total_time,
@@ -79,7 +74,6 @@ async def current_statistics(type: str = "current") -> str:
                         "ttfa": metric.ttfa,
                         "tts_generation": metric.tts_generation,
                         "tts_playback": metric.tts_playback,
-                        "stt_processing": metric.stt_processing,
                         "total_time": metric.total_time
                     },
                     "config": {
@@ -135,8 +129,7 @@ async def statistics_summary(format: str = "json") -> str:
             "performance": {
                 "avg_total_turnaround_seconds": stats.avg_total_time,
                 "avg_time_to_first_audio_seconds": stats.avg_ttfa,
-                "avg_tts_generation_seconds": stats.avg_tts_generation,
-                "avg_stt_processing_seconds": stats.avg_stt_processing
+                "avg_tts_generation_seconds": stats.avg_tts_generation
             },
             "primary_providers": {
                 "voice_provider": primary_voice_provider[0] if primary_voice_provider else None,

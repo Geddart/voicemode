@@ -34,18 +34,10 @@
 # **Optional (audio server - native Linux):**
 # - Usually pre-installed on desktop Linux distributions
 #
-# ### Whisper (STT)
-# - macOS: cmake, portaudio
-# - Ubuntu/Debian: cmake, gcc, g++, make, portaudio19-dev, libasound2-dev
-# - Fedora: cmake, gcc, gcc-c++, make, portaudio-devel, alsa-lib-devel
-#
 # ### Kokoro (TTS)
 # - macOS: rust (optional)
 # - Ubuntu/Debian: cargo, rustc (ARM64 only)
 # - Fedora: cargo, rust (ARM64 only)
-#
-# ### LiveKit
-# - All platforms: No system dependencies (single binary)
 #
 # ---
 #
@@ -207,120 +199,6 @@ voicemode:
           check_command: ffmpeg -version
           install_via: homebrew
 
-  whisper:
-    description: Whisper STT service dependencies
-
-    common:  # All platforms
-      packages:
-        - name: git
-          description: Version control system (needed to clone whisper.cpp repository)
-          required: true
-          check_command: git --version
-          note: Required for cloning whisper.cpp from GitHub
-
-    debian:
-      packages:
-        - name: cmake
-          description: Build system (needed for compiling whisper.cpp)
-          required: true
-          min_version: "3.10"
-          check_command: cmake --version
-
-        - name: gcc
-          description: C compiler
-          required: true
-          min_version: "9.0"
-          check_command: gcc --version
-
-        - name: g++
-          description: C++ compiler
-          required: true
-          min_version: "9.0"
-          check_command: g++ --version
-
-        - name: make
-          description: Build tool
-          required: true
-          check_command: make --version
-
-        - name: libsdl2-dev
-          description: SDL2 development library (for whisper-stream real-time transcription)
-          required: true
-          check_command: pkg-config --exists sdl2
-          note: Required for building whisper-stream binary
-
-        - name: portaudio19-dev
-          description: Audio I/O library (for real-time transcription)
-          required: true
-          check_command: pkg-config --exists portaudio-2.0
-
-        - name: libasound2-dev
-          description: Advanced Linux Sound Architecture
-          required: true
-          check_command: pkg-config --exists alsa
-
-    fedora:
-      packages:
-        - name: cmake
-          description: Build system (needed for compiling whisper.cpp)
-          required: true
-          min_version: "3.10"
-          check_command: cmake --version
-
-        - name: gcc
-          description: C compiler
-          required: true
-          min_version: "9.0"
-          check_command: gcc --version
-
-        - name: gcc-c++
-          description: C++ compiler
-          required: true
-          min_version: "9.0"
-          check_command: g++ --version
-
-        - name: make
-          description: Build tool
-          required: true
-          check_command: make --version
-
-        - name: SDL2-devel
-          description: SDL2 development library (for whisper-stream real-time transcription)
-          required: true
-          check_command: pkg-config --exists sdl2
-          note: Required for building whisper-stream binary
-
-        - name: portaudio-devel
-          description: Audio I/O library (for real-time transcription)
-          required: true
-          check_command: pkg-config --exists portaudio-2.0
-
-        - name: alsa-lib-devel
-          description: Advanced Linux Sound Architecture
-          required: true
-          check_command: pkg-config --exists alsa
-
-    darwin:
-      packages:
-        - name: cmake
-          description: Build system
-          required: true
-          check_command: cmake --version
-          install_via: homebrew
-
-        - name: sdl2
-          description: SDL2 library (for whisper-stream real-time transcription)
-          required: true
-          check_command: brew list sdl2
-          install_via: homebrew
-          note: Required for building whisper-stream binary
-
-        - name: portaudio
-          description: Audio I/O library
-          required: true
-          check_command: brew list portaudio
-          install_via: homebrew
-
   kokoro:
     description: Kokoro TTS service dependencies
 
@@ -368,13 +246,6 @@ voicemode:
           check_command: rustc --version
           install_via: homebrew or rustup
           note: kokoro-fastapi handles most deps via UV
-
-  livekit:
-    description: LiveKit server dependencies (optional)
-
-    common:
-      note: LiveKit server is distributed as a single binary, no system dependencies required
-      packages: []
 
 # Notes:
 # - macOS typically uses Homebrew for all packages

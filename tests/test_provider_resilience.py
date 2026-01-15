@@ -16,7 +16,7 @@ class TestProviderResilience:
         # Local providers
         assert is_local_provider("http://127.0.0.1:8880/v1") is True
         assert is_local_provider("http://localhost:8880/v1") is True
-        assert is_local_provider("http://127.0.0.1:2022/v1") is True
+        assert is_local_provider("http://127.0.0.1:9999/v1") is True
 
         # Remote providers
         assert is_local_provider("https://api.openai.com/v1") is False
@@ -26,7 +26,6 @@ class TestProviderResilience:
         """Test provider type detection."""
         assert detect_provider_type("https://api.openai.com/v1") == "openai"
         assert detect_provider_type("http://127.0.0.1:8880/v1") == "kokoro"
-        assert detect_provider_type("http://127.0.0.1:2022/v1") == "whisper"
         assert detect_provider_type("http://localhost:8880/v1") == "kokoro"
         assert detect_provider_type("http://127.0.0.1:9999/v1") == "local"
         assert detect_provider_type("https://api.example.com/v1") == "unknown"
@@ -47,14 +46,14 @@ class TestProviderResilience:
         await asyncio.sleep(0.01)
 
         # Mark it as failed
-        await registry.mark_failed("tts", local_url, "Connection refused")
+        await registry.mark_failed(local_url, "Connection refused")
 
         # Check that error is recorded but endpoint is still available
         updated_info = registry.registry["tts"][local_url]
         assert updated_info.last_error == "Connection refused"
         assert updated_info.last_check is not None
         # Endpoint should still be returned by get_endpoints
-        endpoints = registry.get_endpoints("tts")
+        endpoints = registry.get_endpoints()
         assert any(e.base_url == local_url for e in endpoints)
 
     @pytest.mark.asyncio
@@ -64,15 +63,15 @@ class TestProviderResilience:
         await registry.initialize()
 
         # Get initial list of endpoints
-        initial_endpoints = registry.get_endpoints("tts")
+        initial_endpoints = registry.get_endpoints()
         initial_count = len(initial_endpoints)
 
         # Mark multiple endpoints as failed
         for endpoint in initial_endpoints[:2]:  # Mark first two as failed
-            await registry.mark_failed("tts", endpoint.base_url, "Test error")
+            await registry.mark_failed(endpoint.base_url, "Test error")
 
         # Check that all endpoints are still available
-        updated_endpoints = registry.get_endpoints("tts")
+        updated_endpoints = registry.get_endpoints()
         assert len(updated_endpoints) == initial_count
 
         # Check that errors were recorded
@@ -93,7 +92,7 @@ class TestProviderResilience:
 
         for url, error in test_urls:
             # Mark as failed
-            await registry.mark_failed("tts", url, error)
+            await registry.mark_failed(url, error)
 
             # Check that error is recorded
             endpoint_info = registry.registry["tts"][url]
@@ -109,10 +108,10 @@ class TestProviderResilience:
         local_url = "http://127.0.0.1:8880/v1"
 
         # Mark local endpoint as failed
-        await registry.mark_failed("tts", local_url, "Service unavailable")
+        await registry.mark_failed(local_url, "Service unavailable")
 
         # Get all endpoints
-        all_endpoints = registry.get_endpoints("tts")
+        all_endpoints = registry.get_endpoints()
 
         # Local endpoint should still be included
         assert any(endpoint.base_url == local_url for endpoint in all_endpoints)
@@ -126,7 +125,7 @@ class TestProviderResilience:
         with patch.object(config, 'TTS_BASE_URLS', [
             "http://127.0.0.1:8880/v1",  # Kokoro (local)
             "https://api.openai.com/v1",  # OpenAI (remote)
-            "http://127.0.0.1:2022/v1"    # Whisper (local)
+            "http://127.0.0.1:9000/v1"    # Another local
         ]):
             registry = ProviderRegistry()
             await registry.initialize()
@@ -134,11 +133,11 @@ class TestProviderResilience:
             test_urls = config.TTS_BASE_URLS
 
             # Mark first two as failed
-            await registry.mark_failed("tts", test_urls[0], "Local service down")
-            await registry.mark_failed("tts", test_urls[1], "API limit reached")
+            await registry.mark_failed(test_urls[0], "Local service down")
+            await registry.mark_failed(test_urls[1], "API limit reached")
 
             # Get all endpoints
-            endpoints = registry.get_endpoints("tts")
+            endpoints = registry.get_endpoints()
 
             # Check we have at least 2 endpoints (some might not be initialized)
             assert len(endpoints) >= 2

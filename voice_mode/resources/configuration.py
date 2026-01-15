@@ -8,18 +8,15 @@ from ..server import mcp
 from ..config import (
     logger,
     # Core settings
-    BASE_DIR, DEBUG, SAVE_ALL, SAVE_AUDIO, SAVE_TRANSCRIPTIONS,
+    BASE_DIR, DEBUG, SAVE_ALL, SAVE_AUDIO,
     AUDIO_FEEDBACK_ENABLED, PREFER_LOCAL, ALWAYS_TRY_LOCAL, AUTO_START_KOKORO,
     # Service settings
-    OPENAI_API_KEY, TTS_BASE_URLS, STT_BASE_URLS, TTS_VOICES, TTS_MODELS,
+    OPENAI_API_KEY, TTS_BASE_URLS, TTS_VOICES, TTS_MODELS,
     # Kokoro settings
     KOKORO_PORT, KOKORO_MODELS_DIR, KOKORO_CACHE_DIR, KOKORO_DEFAULT_VOICE,
     # Audio settings
-    AUDIO_FORMAT, TTS_AUDIO_FORMAT, STT_AUDIO_FORMAT,
+    AUDIO_FORMAT, TTS_AUDIO_FORMAT,
     SAMPLE_RATE, CHANNELS,
-    # Silence detection
-    DISABLE_SILENCE_DETECTION, VAD_AGGRESSIVENESS, SILENCE_THRESHOLD_MS,
-    MIN_RECORDING_DURATION, INITIAL_SILENCE_GRACE_PERIOD, DEFAULT_LISTEN_DURATION,
     # Streaming
     STREAMING_ENABLED, STREAM_CHUNK_SIZE, STREAM_BUFFER_MS, STREAM_MAX_BUFFER,
     # Event logging
@@ -197,7 +194,7 @@ async def environment_variables() -> str:
         ("VOICEMODE_BASE_DIR", "Base directory for all voicemode data"),
         ("VOICEMODE_MODELS_DIR", "Directory for all models (defaults to $VOICEMODE_BASE_DIR/models)"),
         ("VOICEMODE_DEBUG", "Enable debug mode (true/false)"),
-        ("VOICEMODE_SAVE_ALL", "Save all audio and transcriptions (true/false)"),
+        ("VOICEMODE_SAVE_ALL", "Save all audio (true/false)"),
         ("VOICEMODE_SAVE_AUDIO", "Save audio files (true/false)"),
         ("VOICEMODE_AUDIO_FEEDBACK", "Enable audio feedback (true/false)"),
         # Provider Settings
@@ -208,7 +205,7 @@ async def environment_variables() -> str:
         ("VOICEMODE_VOICES", "Comma-separated list of preferred voices"),
         ("VOICEMODE_TTS_MODELS", "Comma-separated list of preferred models"),
         # Audio Settings
-        ("VOICEMODE_AUDIO_FORMAT", "Audio format for recording (pcm/mp3/wav/flac/aac/opus)"),
+        ("VOICEMODE_AUDIO_FORMAT", "Audio format (pcm/mp3/wav/flac/aac/opus)"),
         ("VOICEMODE_TTS_AUDIO_FORMAT", "Audio format for TTS output"),
         # Kokoro Configuration
         ("VOICEMODE_KOKORO_PORT", "Kokoro server port"),

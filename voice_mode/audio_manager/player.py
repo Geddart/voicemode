@@ -1,18 +1,19 @@
 """
 Audio playback manager for the Audio Manager service.
 
-Wraps the existing NonBlockingAudioPlayer to provide:
+Provides audio playback via sounddevice with:
 - Blocking playback (waits for completion)
 - Pause/resume support
 - Playback state tracking
 """
 
 import logging
+import queue
 import threading
-import time
 from typing import Optional, Callable
 
 import numpy as np
+import sounddevice as sd
 
 logger = logging.getLogger("audio_manager.player")
 
@@ -21,13 +22,14 @@ class AudioPlaybackManager:
     """
     Manages audio playback with pause/resume support.
 
-    This class wraps sounddevice for audio output, providing:
+    Uses sounddevice with callback-based playback to provide:
     - Blocking playback that waits for completion
     - Pause/resume via callbacks
     - State tracking for the service
     """
 
-    def __init__(self):
+    def __init__(self, buffer_size: int = 2048):
+        self._buffer_size = buffer_size
         self._is_playing = False
         self._is_paused = False
         self._current_project: Optional[str] = None
@@ -38,8 +40,51 @@ class AudioPlaybackManager:
         self._on_pause: Optional[Callable] = None
         self._on_resume: Optional[Callable] = None
 
-        # Player instance (lazily created)
-        self._player = None
+        # Audio stream and queue
+        self._stream: Optional[sd.OutputStream] = None
+        self._audio_queue: Optional[queue.Queue] = None
+
+    def _audio_callback(self, outdata, frames, time_info, status):
+        """Callback function called by sounddevice for each audio buffer."""
+        if status:
+            logger.warning(f"Audio callback status: {status}")
+
+        # If paused, output silence but don't consume from queue
+        if self._is_paused:
+            outdata[:] = 0
+            return
+
+        try:
+            # Get audio chunk from queue
+            chunk = self._audio_queue.get_nowait()
+
+            # Handle end-of-stream marker
+            if chunk is None:
+                outdata[:] = 0
+                self._playback_complete.set()
+                raise sd.CallbackStop()
+
+            # Fill output buffer
+            chunk_len = len(chunk)
+            if chunk_len < frames:
+                # Partial chunk - pad with zeros
+                if chunk.ndim == 1:
+                    outdata[:chunk_len, 0] = chunk
+                    outdata[chunk_len:, 0] = 0
+                else:
+                    outdata[:chunk_len] = chunk
+                    outdata[chunk_len:] = 0
+                self._playback_complete.set()
+                raise sd.CallbackStop()
+            else:
+                if chunk.ndim == 1:
+                    outdata[:, 0] = chunk[:frames]
+                else:
+                    outdata[:] = chunk[:frames]
+
+        except queue.Empty:
+            # No data available - output silence
+            outdata[:] = 0
 
     def play(
         self,
@@ -59,7 +104,7 @@ class AudioPlaybackManager:
             True if playback completed successfully, False otherwise
         """
         try:
-            # Convert bytes to numpy array
+            # Convert bytes to numpy array (16-bit int -> float32)
             samples = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
 
             with self._lock:
@@ -69,41 +114,51 @@ class AudioPlaybackManager:
 
             logger.debug(f"Starting playback for {project}: {len(samples)} samples at {sample_rate}Hz")
 
-            # Use NonBlockingAudioPlayer for actual playback
-            from voice_mode.audio_player import NonBlockingAudioPlayer
+            # Determine channels
+            channels = 1 if samples.ndim == 1 else samples.shape[1]
 
-            self._player = NonBlockingAudioPlayer()
+            # Create queue and fill with audio chunks
+            self._audio_queue = queue.Queue()
+            for i in range(0, len(samples), self._buffer_size):
+                chunk = samples[i:i + self._buffer_size]
+                self._audio_queue.put(chunk)
+            self._audio_queue.put(None)  # End-of-stream marker
 
-            # Set up pause/resume handling
-            if hasattr(self._player, '_paused'):
-                self._player._paused = self._is_paused
+            # Create and start output stream
+            self._stream = sd.OutputStream(
+                samplerate=sample_rate,
+                channels=channels,
+                callback=self._audio_callback,
+                blocksize=self._buffer_size,
+                dtype=np.float32
+            )
+            self._stream.start()
 
-            # Play with blocking=True to wait for completion
-            self._player.play(samples, sample_rate, blocking=False)
+            # Wait for playback to complete
+            self._playback_complete.wait()
 
-            # Wait for playback to complete, checking pause state periodically
-            while not self._player.playback_complete.is_set():
-                # Update pause state on the player
-                if self._player and hasattr(self._player, '_paused'):
-                    with self._lock:
-                        self._player._paused = self._is_paused
-
-                self._player.playback_complete.wait(timeout=0.05)
-
-            # Clean up
-            self._player.wait(timeout=1.0)
-            self._player = None
+            # Clean up stream
+            if self._stream:
+                self._stream.stop()
+                self._stream.close()
+                self._stream = None
 
             with self._lock:
                 self._is_playing = False
                 self._current_project = None
-                self._playback_complete.set()
 
             logger.debug(f"Playback complete for {project}")
             return True
 
         except Exception as e:
             logger.error(f"Playback error: {e}")
+            if self._stream:
+                try:
+                    self._stream.stop()
+                    self._stream.close()
+                except Exception:
+                    pass
+                self._stream = None
             with self._lock:
                 self._is_playing = False
                 self._current_project = None
@@ -123,10 +178,6 @@ class AudioPlaybackManager:
         with self._lock:
             self._is_paused = True
 
-            # Update player if active
-            if self._player and hasattr(self._player, 'pause'):
-                self._player.pause()
-
         logger.debug("Paused state set")
         if self._on_pause:
             self._on_pause()
@@ -145,10 +196,6 @@ class AudioPlaybackManager:
         with self._lock:
             self._is_paused = False
 
-            # Update player if active
-            if self._player and hasattr(self._player, 'resume'):
-                self._player.resume()
-
         logger.debug("Resumed state set")
         if self._on_resume:
             self._on_resume()
@@ -165,8 +212,22 @@ class AudioPlaybackManager:
             if not self._is_playing:
                 return False
 
-            if self._player and hasattr(self._player, 'stop'):
-                self._player.stop()
+            # Stop stream
+            if self._stream:
+                try:
+                    self._stream.stop()
+                    self._stream.close()
+                except Exception:
+                    pass
+                self._stream = None
+
+            # Clear queue
+            if self._audio_queue:
+                while not self._audio_queue.empty():
+                    try:
+                        self._audio_queue.get_nowait()
+                    except queue.Empty:
+                        break
 
             self._is_playing = False
             self._is_paused = False

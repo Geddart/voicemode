@@ -34,23 +34,6 @@ Options:
   --timeout INTEGER     Recording timeout in seconds
 ```
 
-### transcribe
-Transcribe audio with optional word-level timestamps
-
-```bash
-voicemode transcribe [OPTIONS]
-
-Options:
-  --timestamps     Include word-level timestamps
-  --output TEXT    Output file path (default: stdout)
-  --format TEXT    Output format: text, json, vtt, srt
-
-Examples:
-echo "Hello" | voicemode transcribe
-voicemode transcribe < audio.wav
-voicemode transcribe --timestamps < recording.wav
-```
-
 ## Diagnostic Commands
 
 ### diag
@@ -67,43 +50,6 @@ Commands:
 ```
 
 ## Service Management
-
-### whisper
-Manage Whisper STT service
-
-```bash
-# Installation and setup
-voicemode whisper install [--model MODEL]
-voicemode whisper uninstall
-
-# Service control
-voicemode whisper start
-voicemode whisper stop
-voicemode whisper restart
-voicemode whisper status
-
-# Service management
-voicemode whisper enable    # Start at boot
-voicemode whisper disable   # Don't start at boot
-
-# Model management
-voicemode whisper models                    # List available models
-voicemode whisper model active             # Show active model
-voicemode whisper model active MODEL       # Set active model
-voicemode whisper model install MODEL      # Install specific model
-voicemode whisper model remove MODEL       # Remove model
-
-# Logs and debugging
-voicemode whisper logs [--follow]
-```
-
-Available models:
-- tiny, tiny.en (39 MB)
-- base, base.en (142 MB)
-- small, small.en (466 MB)
-- medium, medium.en (1.5 GB)
-- large-v1, large-v2, large-v3 (2.9-3.1 GB)
-- large-v3-turbo (1.6 GB)
 
 ### kokoro
 Manage Kokoro TTS service
@@ -128,30 +74,6 @@ voicemode kokoro voices     # List available voices
 voicemode kokoro logs [--follow]
 ```
 
-### livekit
-Manage LiveKit RTC service
-
-```bash
-# Installation and setup
-voicemode livekit install
-voicemode livekit uninstall [--remove-all-data]
-
-# Service control
-voicemode livekit start
-voicemode livekit stop
-voicemode livekit restart
-voicemode livekit status
-
-# Service management
-voicemode livekit enable
-voicemode livekit disable
-
-# Configuration
-voicemode livekit update    # Update service files
-voicemode livekit logs [--follow]
-```
-
-
 ## Configuration Commands
 
 ### config
@@ -169,22 +91,6 @@ voicemode config test
 
 # Edit configuration
 voicemode config edit
-```
-
-## Conversation Management
-
-### exchanges
-Manage and view conversation exchange logs
-
-```bash
-# View recent exchanges
-voicemode exchanges
-
-# View specific exchange
-voicemode exchanges show EXCHANGE_ID
-
-# Clear exchange logs
-voicemode exchanges clear
 ```
 
 ## Utility Commands
@@ -267,9 +173,7 @@ voicemode transcribe < recording.wav
 ### Service Setup
 ```bash
 # Full local setup
-voicemode whisper install
 voicemode kokoro install
-voicemode whisper enable
 voicemode kokoro enable
 ```
 
@@ -289,17 +193,14 @@ voicemode diag dependencies
 ### Troubleshooting
 ```bash
 # Check what's running
-voicemode whisper status
 voicemode kokoro status
 
 # View logs
-voicemode whisper logs --follow
 voicemode kokoro logs --follow
 
 # Check registry and providers
 voicemode diag registry
 
 # Restart services
-voicemode whisper restart
 voicemode kokoro restart
 ```

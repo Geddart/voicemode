@@ -193,30 +193,15 @@ class TestToolFiltering:
 class TestCLIArguments:
     """Test CLI argument handling for tool filtering."""
 
+    @pytest.mark.skip(reason="CLI removed in TTS-only fork")
     def test_cli_tools_enabled(self):
         """Test --tools-enabled CLI argument."""
-        # This test would need to run the CLI in a subprocess
-        result = subprocess.run(
-            [sys.executable, "-m", "voice_mode", "--tools-enabled", "converse", "--help"],
-            capture_output=True,
-            text=True,
-            env={**os.environ, 'PYTHONPATH': str(Path(__file__).parent.parent)}
-        )
+        pass
 
-        assert result.returncode == 0
-        assert "Voice Mode" in result.stdout
-
+    @pytest.mark.skip(reason="CLI removed in TTS-only fork")
     def test_cli_tools_disabled(self):
         """Test --tools-disabled CLI argument."""
-        result = subprocess.run(
-            [sys.executable, "-m", "voice_mode", "--tools-disabled", "kokoro_install", "--help"],
-            capture_output=True,
-            text=True,
-            env={**os.environ, 'PYTHONPATH': str(Path(__file__).parent.parent)}
-        )
-
-        assert result.returncode == 0
-        assert "Voice Mode" in result.stdout
+        pass
 
 
 class TestIntegration:

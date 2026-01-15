@@ -1,8 +1,10 @@
 """
 Main entry point for voice-mode when called as a module.
+
+Runs the MCP server for TTS functionality.
 """
 
-from .cli import voice_mode
+from .server import mcp
 
 if __name__ == "__main__":
-    voice_mode()
+    mcp.run()

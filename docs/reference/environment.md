@@ -18,7 +18,7 @@ Environment variables are processed in this order (highest to lowest priority):
 
 | Variable | Description | Default | Example |
 |----------|-------------|---------|---------|
-| `OPENAI_API_KEY` | OpenAI API key for cloud TTS/STT | None | `sk-proj-...` |
+| `OPENAI_API_KEY` | OpenAI API key for cloud TTS | None | `sk-proj-...` |
 
 ## Voice Services
 
@@ -32,22 +32,6 @@ Environment variables are processed in this order (highest to lowest priority):
 | `VOICEMODE_TTS_MODELS` | Comma-separated TTS models | `tts-1-hd,tts-1` | `gpt-4o-mini-tts,tts-1` |
 | `VOICEMODE_TTS_MODEL` | Default TTS model | First from MODELS | `tts-1-hd` |
 | `VOICEMODE_TTS_SPEED` | Speech speed (0.25-4.0) | `1.0` | `1.5` |
-
-### Speech-to-Text (STT)
-
-| Variable | Description | Default | Example |
-|----------|-------------|---------|---------|
-| `VOICEMODE_STT_BASE_URLS` | Comma-separated STT service URLs | `https://api.openai.com/v1` | `http://localhost:2022/v1` |
-| `VOICEMODE_STT_MODEL` | STT model | `whisper-1` | `whisper-1` |
-
-### Whisper Configuration
-
-| Variable | Description | Default | Example |
-|----------|-------------|---------|---------|
-| `VOICEMODE_WHISPER_MODEL` | Whisper model size | `large-v2` | `base.en` |
-| `VOICEMODE_WHISPER_LANGUAGE` | Language code or 'auto' | `auto` | `en` |
-| `VOICEMODE_WHISPER_PORT` | Whisper server port | `2022` | `2023` |
-| `VOICEMODE_WHISPER_MODEL_PATH` | Path to Whisper models | `~/.voicemode/models/whisper` | `/models/whisper` |
 
 ### Kokoro Configuration
 
@@ -66,7 +50,6 @@ Environment variables are processed in this order (highest to lowest priority):
 |----------|-------------|---------|---------|
 | `VOICEMODE_AUDIO_FORMAT` | Global audio format | `pcm` | `mp3` |
 | `VOICEMODE_TTS_AUDIO_FORMAT` | TTS-specific format | `pcm` | `opus` |
-| `VOICEMODE_STT_AUDIO_FORMAT` | STT-specific format | `mp3` | `wav` |
 
 Supported formats: `pcm`, `opus`, `mp3`, `wav`, `flac`, `aac`
 
@@ -87,17 +70,6 @@ Supported formats: `pcm`, `opus`, `mp3`, `wav`, `flac`, `aac`
 | `VOICEMODE_FEEDBACK_STYLE` | Chime style | `whisper` | `shout` |
 | `VOICEMODE_CHIME_PRE_DELAY` | Silence before chime (seconds) | `0.1` | `1.0` |
 | `VOICEMODE_CHIME_POST_DELAY` | Silence after chime (seconds) | `0.2` | `0.5` |
-
-## Voice Activity Detection
-
-| Variable | Description | Default | Example |
-|----------|-------------|---------|---------|
-| `VOICEMODE_VAD_AGGRESSIVENESS` | VAD level (0-3) | `2` | `3` |
-| `VOICEMODE_DISABLE_VAD` | Disable VAD | `false` | `true` |
-| `VOICEMODE_DISABLE_SILENCE_DETECTION` | Disable silence detection | `false` | `true` |
-| `VOICEMODE_SILENCE_THRESHOLD` | Silence duration (seconds) | `3.0` | `5.0` |
-| `VOICEMODE_MIN_RECORDING_TIME` | Minimum recording (seconds) | `0.5` | `1.0` |
-| `VOICEMODE_MAX_RECORDING_TIME` | Maximum recording (seconds) | `120.0` | `60.0` |
 
 ## File Storage
 
@@ -147,7 +119,6 @@ These variables from older versions are still supported:
 | `VOICE_MODE_DEBUG` | `VOICEMODE_DEBUG` | Deprecated |
 | `VOICE_MODE_SAVE_AUDIO` | `VOICEMODE_SAVE_ALL` | Deprecated |
 | `TTS_BASE_URL` | `VOICEMODE_TTS_BASE_URLS` | Still supported |
-| `STT_BASE_URL` | `VOICEMODE_STT_BASE_URLS` | Still supported |
 | `TTS_VOICE` | `VOICEMODE_TTS_VOICE` | Still supported |
 | `TTS_MODEL` | `VOICEMODE_TTS_MODEL` | Still supported |
 

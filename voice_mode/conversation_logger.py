@@ -1,7 +1,7 @@
 """
 Conversation logging system using JSONL format.
 
-Tracks all utterances (STT and TTS) in a structured, append-only format
+Tracks TTS utterances in a structured, append-only format
 for real-time conversation tracking and analysis.
 """
 
@@ -118,10 +118,10 @@ class ConversationLogger:
                      duration_ms: Optional[int] = None,
                      metadata: Optional[Dict[str, Any]] = None) -> None:
         """Log an utterance to the JSONL file.
-        
+
         Args:
-            utterance_type: Either "stt" or "tts"
-            text: The transcribed or synthesized text
+            utterance_type: The utterance type (e.g., "tts")
+            text: The synthesized text
             audio_file: Path to the audio file (relative to base_dir)
             duration_ms: Duration of the audio in milliseconds
             metadata: Additional metadata about the utterance
@@ -174,30 +174,6 @@ class ConversationLogger:
                     self.conversation_id = self._generate_conversation_id()
             except Exception:
                 pass  # Keep current conversation ID on error
-    
-    def log_stt(self, text: str, audio_file: Optional[str] = None,
-                duration_ms: Optional[int] = None, **kwargs) -> None:
-        """Log a speech-to-text utterance."""
-        metadata = {
-            "model": kwargs.get("model"),
-            "provider": kwargs.get("provider"),
-            "provider_url": kwargs.get("provider_url"),
-            "provider_type": kwargs.get("provider_type"),
-            "language": kwargs.get("language"),
-            "audio_format": kwargs.get("audio_format"),
-            "transport": kwargs.get("transport"),
-            "timing": kwargs.get("timing"),
-            "silence_detection": kwargs.get("silence_detection"),
-            "error": kwargs.get("error"),
-            # Fallback information
-            "is_fallback": kwargs.get("is_fallback"),
-            "fallback_reason": kwargs.get("fallback_reason"),
-            # Timing metrics
-            "transcription_time": kwargs.get("transcription_time"),
-            "total_turnaround_time": kwargs.get("total_turnaround_time"),
-        }
-        
-        self.log_utterance("stt", text, audio_file, duration_ms, metadata)
     
     def log_tts(self, text: str, audio_file: Optional[str] = None,
                 duration_ms: Optional[int] = None, **kwargs) -> None:

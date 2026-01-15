@@ -71,9 +71,8 @@ For manual setup, see the [Getting Started Guide](docs/tutorials/getting-started
 ## Features
 
 - **Natural conversations** - speak naturally, hear responses immediately
-- **Works offline** - optional local voice services (Whisper STT, Kokoro TTS)
+- **Works offline** - optional local voice service (Kokoro TTS)
 - **Low latency** - fast enough to feel like a real conversation
-- **Smart silence detection** - stops recording when you stop speaking
 - **Privacy options** - run entirely locally or use cloud services
 
 ## Compatibility
@@ -99,10 +98,9 @@ See the [Configuration Guide](docs/guides/configuration.md) for all options.
 
 For privacy or offline use, install local speech services:
 
-- **[Whisper.cpp](docs/guides/whisper-setup.md)** - Local speech-to-text
 - **[Kokoro](docs/guides/kokoro-setup.md)** - Local text-to-speech with multiple voices
 
-These provide the same API as OpenAI, so VoiceMode switches seamlessly between them.
+This provides the same API as OpenAI, so VoiceMode switches seamlessly between them.
 
 ## Installation Details
 
@@ -186,7 +184,6 @@ export VOICEMODE_SAVE_AUDIO=true
 
 - [Getting Started](docs/tutorials/getting-started.md) - Full setup guide
 - [Configuration](docs/guides/configuration.md) - All environment variables
-- [Whisper Setup](docs/guides/whisper-setup.md) - Local speech-to-text
 - [Kokoro Setup](docs/guides/kokoro-setup.md) - Local text-to-speech
 - [Development Setup](docs/tutorials/development-setup.md) - Contributing guide
 

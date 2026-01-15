@@ -1,4 +1,4 @@
-"""Tests for pronunciation rules parsing."""
+"""Tests for pronunciation rules parsing (TTS-only)."""
 
 import os
 import pytest
@@ -9,18 +9,14 @@ def test_parse_basic_tts_rule():
     """Test parsing a basic TTS rule."""
     rules = parse_compact_rules('TTS bag carrier')
     assert len(rules['tts']) == 1
-    assert len(rules['stt']) == 0
     assert rules['tts'][0].pattern == 'bag'
     assert rules['tts'][0].replacement == 'carrier'
 
 
-def test_parse_basic_stt_rule():
-    """Test parsing a basic STT rule."""
+def test_parse_non_tts_direction_rejected():
+    """Test that non-TTS directions are rejected."""
     rules = parse_compact_rules('STT bag carrier')
-    assert len(rules['stt']) == 1
-    assert len(rules['tts']) == 0
-    assert rules['stt'][0].pattern == 'bag'
-    assert rules['stt'][0].replacement == 'carrier'
+    assert len(rules['tts']) == 0  # STT rules are no longer supported
 
 
 def test_parse_with_description():
@@ -49,25 +45,19 @@ def test_parse_with_regex_pattern():
 
 
 def test_parse_multiple_rules():
-    """Test parsing multiple rules."""
+    """Test parsing multiple TTS rules (STT rules are ignored)."""
     text = '''TTS bag carrier # first
-STT carrier bag # second
+STT carrier bag # second (ignored)
 TTS foo bar # third'''
     rules = parse_compact_rules(text)
-    assert len(rules['tts']) == 2
-    assert len(rules['stt']) == 1
+    assert len(rules['tts']) == 2  # Only TTS rules are parsed
 
 
 def test_parse_case_insensitive_direction():
-    """Test that direction is case insensitive."""
+    """Test that TTS direction is case insensitive."""
     for direction in ['TTS', 'tts', 'Tts']:
         rules = parse_compact_rules(f'{direction} bag carrier')
         assert len(rules['tts']) == 1
-
-    # Test STT variants
-    for direction in ['STT', 'stt', 'Stt']:
-        rules = parse_compact_rules(f'{direction} bag carrier')
-        assert len(rules['stt']) == 1
 
 
 def test_parse_skips_comments():
@@ -77,7 +67,6 @@ TTS bag carrier # real rule
 # TTS commented out # disabled'''
     rules = parse_compact_rules(text)
     assert len(rules['tts']) == 1
-    assert len(rules['stt']) == 0
 
 
 def test_parse_skips_empty_lines():
@@ -95,14 +84,12 @@ def test_parse_invalid_direction():
     """Test that invalid direction is rejected."""
     rules = parse_compact_rules('INVALID bag carrier')
     assert len(rules['tts']) == 0
-    assert len(rules['stt']) == 0
 
 
 def test_parse_insufficient_fields():
     """Test that rules with < 3 fields are rejected."""
     rules = parse_compact_rules('TTS bag')  # Only 2 fields
     assert len(rules['tts']) == 0
-    assert len(rules['stt']) == 0
 
 
 def test_manager_loads_from_env():
@@ -130,16 +117,16 @@ def test_manager_strips_quotes():
 
     try:
         # Simulate what .env file loading does - keeps quotes
-        os.environ['VOICEMODE_PRONOUNCE'] = "'STT bag carrier'"
+        os.environ['VOICEMODE_PRONOUNCE'] = "'TTS bag carrier'"
         manager = PronounceManager()
-        assert len(manager.rules['stt']) == 1
-        assert manager.rules['stt'][0].pattern == 'bag'
+        assert len(manager.rules['tts']) == 1
+        assert manager.rules['tts'][0].pattern == 'bag'
 
         # Test with double quotes
-        os.environ['VOICEMODE_PRONOUNCE'] = '"STT bag carrier"'
+        os.environ['VOICEMODE_PRONOUNCE'] = '"TTS bag carrier"'
         manager = PronounceManager()
-        assert len(manager.rules['stt']) == 1
-        assert manager.rules['stt'][0].pattern == 'bag'
+        assert len(manager.rules['tts']) == 1
+        assert manager.rules['tts'][0].pattern == 'bag'
     finally:
         # Restore original env
         if original:
@@ -158,10 +145,9 @@ def test_manager_multiple_env_vars():
 
     try:
         os.environ['VOICEMODE_PRONOUNCE'] = 'TTS bag carrier'
-        os.environ['VOICEMODE_PRONOUNCE_TEST'] = 'STT carrier bag'
+        os.environ['VOICEMODE_PRONOUNCE_TEST'] = 'TTS carrier bag'
         manager = PronounceManager()
-        assert len(manager.rules['tts']) == 1
-        assert len(manager.rules['stt']) == 1
+        assert len(manager.rules['tts']) == 2
     finally:
         # Restore original env
         for key, value in originals.items():
@@ -188,25 +174,6 @@ def test_tts_processing():
         manager = PronounceManager()
         result = manager.process_tts('bagging')
         assert result == 'bagging'  # Unchanged
-    finally:
-        # Restore original env
-        if original:
-            os.environ['VOICEMODE_PRONOUNCE'] = original
-        else:
-            os.environ.pop('VOICEMODE_PRONOUNCE', None)
-
-
-def test_stt_processing():
-    """Test STT text processing."""
-    # Save original env
-    original = os.environ.get('VOICEMODE_PRONOUNCE')
-
-    try:
-        os.environ['VOICEMODE_PRONOUNCE'] = 'STT bag carrier'
-        manager = PronounceManager()
-
-        result = manager.process_stt('where is my bag')
-        assert result == 'where is my carrier'
     finally:
         # Restore original env
         if original:

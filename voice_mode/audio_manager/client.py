@@ -137,7 +137,7 @@ class AudioManagerClient:
         priority: str = "normal",
     ) -> dict:
         """
-        Queue audio for playback.
+        Queue audio for playback using reserve/fill for proper FIFO ordering.
 
         Args:
             audio_data: Raw audio bytes (16-bit signed integers)
@@ -146,7 +146,7 @@ class AudioManagerClient:
             priority: Priority level (high, normal, low)
 
         Returns:
-            Dict with queued status, position, estimated_wait_ms
+            Dict with queued status, position, item_id
         """
         if not await self.ensure_running():
             return {
@@ -155,17 +155,35 @@ class AudioManagerClient:
             }
 
         try:
-            async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
-                response = await client.post(
-                    f"{self.base_url}/speak",
-                    json={
-                        "audio_data": base64.b64encode(audio_data).decode(),
-                        "sample_rate": sample_rate,
-                        "project": project,
-                        "priority": priority,
-                    },
-                )
-                return response.json()
+            # Use reserve/fill pattern for proper FIFO ordering
+            reservation = await self.reserve(project=project, priority=priority)
+            if not reservation.get("reserved"):
+                return {
+                    "queued": False,
+                    "error": reservation.get("error", "Failed to reserve slot"),
+                }
+
+            item_id = reservation.get("item_id")
+            position = reservation.get("position", 0)
+
+            # Fill the reserved slot immediately (audio already available)
+            fill_result = await self.fill(
+                item_id=item_id,
+                audio_data=audio_data,
+                sample_rate=sample_rate,
+            )
+
+            if not fill_result.get("filled"):
+                return {
+                    "queued": False,
+                    "error": fill_result.get("error", "Failed to fill slot"),
+                }
+
+            return {
+                "queued": True,
+                "item_id": item_id,
+                "position": position,
+            }
         except Exception as e:
             logger.error(f"Failed to queue audio: {e}")
             return {

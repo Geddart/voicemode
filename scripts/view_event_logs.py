@@ -97,12 +97,6 @@ def calculate_session_metrics(session_events: List[Dict[str, Any]]) -> Dict[str,
     if rec_start and rec_end:
         metrics['recording'] = (rec_end - rec_start).total_seconds()
     
-    # STT Processing: STT_START to STT_COMPLETE
-    stt_start = get_first_ts('STT_START')
-    stt_complete = get_first_ts('STT_COMPLETE')
-    if stt_start and stt_complete:
-        metrics['stt_processing'] = (stt_complete - stt_start).total_seconds()
-    
     # Response time: RECORDING_END to next TTS_PLAYBACK_START
     # This is the user-perceived response time
     if rec_end and len(events_by_type.get('TTS_PLAYBACK_START', [])) > 1:
@@ -180,7 +174,6 @@ def print_session_summary(session_id: str, events: List[Dict[str, Any]]):
         print(f"  TTS Generation: {format_duration(metrics.get('tts_generation', 0))}")
         print(f"  TTS Playback: {format_duration(metrics.get('tts_playback', 0))}")
         print(f"  Recording: {format_duration(metrics.get('recording', 0))}")
-        print(f"  STT Processing: {format_duration(metrics.get('stt_processing', 0))}")
         print(f"  Response Time: {format_duration(metrics.get('response_time', 0))}")
         
         # AI thinking time
@@ -197,9 +190,7 @@ def print_session_summary(session_id: str, events: List[Dict[str, Any]]):
         if event['event_type'] == 'TTS_START':
             msg = event['data'].get('message', '')[:100]
             print(f"\nTTS: \"{msg}{'...' if len(msg) == 100 else ''}\"")
-        elif event['event_type'] == 'STT_COMPLETE':
-            text = event['data'].get('text', '')
-            print(f"STT: \"{text}\"")
+
 
 
 def print_timeline(events: List[Dict[str, Any]]):
@@ -224,9 +215,6 @@ def print_timeline(events: List[Dict[str, Any]]):
             voice = event['data'].get('voice', '')
             msg = event['data'].get('message', '')[:40]
             details = f"voice={voice}, msg=\"{msg}...\""
-        elif event['event_type'] == 'STT_COMPLETE':
-            text = event['data'].get('text', '')[:50]
-            details = f"text=\"{text}...\""
         elif event['event_type'] == 'RECORDING_END':
             duration = event['data'].get('duration', 0)
             details = f"duration={format_duration(duration)}"
@@ -284,7 +272,7 @@ def print_statistics(all_sessions: Dict[str, List[Dict[str, Any]]]):
     print(f"{'='*60}")
     
     # Calculate aggregates for each metric
-    metric_names = ['ttfa', 'tts_generation', 'tts_playback', 'recording', 'stt_processing', 'response_time', 'ai_thinking_avg']
+    metric_names = ['ttfa', 'tts_generation', 'tts_playback', 'recording', 'response_time', 'ai_thinking_avg']
     
     for metric_name in metric_names:
         values = [m.get(metric_name, 0) for m in all_metrics if metric_name in m]

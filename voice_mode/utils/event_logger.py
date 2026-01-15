@@ -49,18 +49,6 @@ class EventLogger:
     TTS_PLAYBACK_END = "TTS_PLAYBACK_END"
     TTS_ERROR = "TTS_ERROR"
     
-    # Recording Events
-    RECORDING_START = "RECORDING_START"
-    RECORDING_END = "RECORDING_END"
-    RECORDING_SAVED = "RECORDING_SAVED"
-    
-    # STT Events
-    STT_REQUEST = "STT_REQUEST"
-    STT_START = "STT_START"
-    STT_COMPLETE = "STT_COMPLETE"
-    STT_NO_SPEECH = "STT_NO_SPEECH"
-    STT_ERROR = "STT_ERROR"
-    
     # System Events
     SESSION_START = "SESSION_START"
     SESSION_END = "SESSION_END"
@@ -200,24 +188,6 @@ class EventLogger:
             ttfa = parse_ts(events_by_type[self.TTS_FIRST_AUDIO][0])
             metrics["ttfa"] = (ttfa - tts_start).total_seconds()
         
-        # Recording duration
-        if self.RECORDING_START in events_by_type and self.RECORDING_END in events_by_type:
-            rec_start = parse_ts(events_by_type[self.RECORDING_START][0])
-            rec_end = parse_ts(events_by_type[self.RECORDING_END][0])
-            metrics["recording_duration"] = (rec_end - rec_start).total_seconds()
-        
-        # STT processing time
-        if self.STT_START in events_by_type and self.STT_COMPLETE in events_by_type:
-            stt_start = parse_ts(events_by_type[self.STT_START][0])
-            stt_complete = parse_ts(events_by_type[self.STT_COMPLETE][0])
-            metrics["stt_processing"] = (stt_complete - stt_start).total_seconds()
-        
-        # User-perceived response time: from end of recording to start of TTS playback
-        if self.RECORDING_END in events_by_type and self.TTS_PLAYBACK_START in events_by_type:
-            rec_end = parse_ts(events_by_type[self.RECORDING_END][0])
-            tts_playback = parse_ts(events_by_type[self.TTS_PLAYBACK_START][0])
-            metrics["response_time"] = (tts_playback - rec_end).total_seconds()
-        
         # Total conversation time
         if self.SESSION_START in events_by_type and self.SESSION_END in events_by_type:
             session_start = parse_ts(events_by_type[self.SESSION_START][0])
@@ -318,39 +288,6 @@ def log_tts_first_audio() -> None:
     logger = get_event_logger()
     if logger:
         logger.log_event(EventLogger.TTS_FIRST_AUDIO)
-
-
-def log_recording_start() -> None:
-    """Log recording start."""
-    logger = get_event_logger()
-    if logger:
-        logger.log_event(EventLogger.RECORDING_START)
-
-
-def log_recording_end(duration: Optional[float] = None, samples: Optional[int] = None) -> None:
-    """Log recording end."""
-    logger = get_event_logger()
-    if logger:
-        data = {}
-        if duration is not None:
-            data["duration"] = duration
-        if samples is not None:
-            data["samples"] = samples
-        logger.log_event(EventLogger.RECORDING_END, data)
-
-
-def log_stt_start() -> None:
-    """Log STT start."""
-    logger = get_event_logger()
-    if logger:
-        logger.log_event(EventLogger.STT_START)
-
-
-def log_stt_complete(text: str) -> None:
-    """Log STT completion."""
-    logger = get_event_logger()
-    if logger:
-        logger.log_event(EventLogger.STT_COMPLETE, {"text": text})
 
 
 def log_tool_request_start(tool_name: str, parameters: Optional[Dict[str, Any]] = None) -> None:

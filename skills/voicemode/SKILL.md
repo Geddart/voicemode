@@ -17,7 +17,7 @@ After install, reconnect MCP: `/mcp` → select voicemode → "Reconnect" (or re
 
 # VoiceMode
 
-Natural voice conversations with Claude Code using speech-to-text (STT) and text-to-speech (TTS).
+Natural voice conversations with Claude Code using text-to-speech (TTS).
 
 **Note:** The Python package is `voice-mode` (hyphen), but the CLI command is `voicemode` (no hyphen).
 
@@ -65,7 +65,7 @@ For all parameters, see [Converse Parameters](../../docs/reference/converse-para
 
 ```bash
 voicemode service status          # All services
-voicemode service status whisper  # Specific service
+voicemode service status kokoro   # Specific service
 ```
 
 Shows service status including running state, ports, and health.
@@ -77,7 +77,6 @@ Shows service status including running state, ports, and health.
 uvx voice-mode-install --yes
 
 # Install local services (Apple Silicon recommended)
-voicemode service install whisper
 voicemode service install kokoro
 ```
 
@@ -87,18 +86,15 @@ See [Getting Started](../../docs/tutorials/getting-started.md) for detailed step
 
 ```python
 # Start/stop services
-voicemode:service("whisper", "start")
 voicemode:service("kokoro", "start")
 
 # View logs for troubleshooting
-voicemode:service("whisper", "logs", lines=50)
+voicemode:service("kokoro", "logs", lines=50)
 ```
 
 | Service | Port | Purpose |
 |---------|------|---------|
-| whisper | 2022 | Speech-to-text |
 | kokoro | 8880 | Text-to-speech |
-| livekit | 7880 | Real-time rooms |
 
 **Actions:** status, start, stop, restart, logs, enable, disable
 
@@ -134,17 +130,13 @@ See [DJ Mode docs](docs/dj-mode/README.md) for full documentation.
 ```bash
 # Service management
 voicemode service status            # All services
-voicemode service start whisper     # Start a service
+voicemode service start kokoro      # Start a service
 voicemode service logs kokoro       # View logs
 
 # Diagnostics
 voicemode deps                      # Check dependencies
 voicemode diag info                 # System info
 voicemode diag devices              # Audio devices
-
-# History search
-voicemode history search "keyword"
-voicemode history play <exchange_id>
 
 # DJ Mode
 mpv-dj play <file|url>              # Start playback
@@ -161,7 +153,6 @@ mpv-dj stop                         # Stop playback
 | Installation | [Getting Started](../../docs/tutorials/getting-started.md) |
 | Configuration | [Configuration Guide](../../docs/guides/configuration.md) |
 | Claude Code Plugin | [Plugin Guide](../../docs/guides/claude-code-plugin.md) |
-| Whisper STT | [Whisper Setup](../../docs/guides/whisper-setup.md) |
 | Kokoro TTS | [Kokoro Setup](../../docs/guides/kokoro-setup.md) |
 | Pronunciation | [Pronunciation Guide](../../docs/guides/pronunciation.md) |
 | Troubleshooting | [Troubleshooting](../../docs/troubleshooting/index.md) |

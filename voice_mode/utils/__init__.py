@@ -6,10 +6,6 @@ from .event_logger import (
     initialize_event_logger,
     log_tts_start,
     log_tts_first_audio,
-    log_recording_start,
-    log_recording_end,
-    log_stt_start,
-    log_stt_complete,
     log_tool_request_start,
     log_tool_request_end
 )
@@ -20,10 +16,6 @@ __all__ = [
     "initialize_event_logger",
     "log_tts_start",
     "log_tts_first_audio",
-    "log_recording_start",
-    "log_recording_end",
-    "log_stt_start",
-    "log_stt_complete",
     "log_tool_request_start",
     "log_tool_request_end"
 ]

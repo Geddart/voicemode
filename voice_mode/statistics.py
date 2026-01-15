@@ -29,8 +29,6 @@ class ConversationMetric:
     tts_generation: Optional[float] = None
     tts_playback: Optional[float] = None
     tts_total: Optional[float] = None
-    stt_processing: Optional[float] = None
-    recording_duration: Optional[float] = None
     total_time: Optional[float] = None
     transport: Optional[str] = None
     voice_provider: Optional[str] = None
@@ -60,11 +58,7 @@ class SessionStatistics:
     avg_tts_playback: Optional[float] = None
     min_tts_playback: Optional[float] = None
     max_tts_playback: Optional[float] = None
-    
-    avg_stt_processing: Optional[float] = None
-    min_stt_processing: Optional[float] = None
-    max_stt_processing: Optional[float] = None
-    
+
     avg_total_time: Optional[float] = None
     min_total_time: Optional[float] = None
     max_total_time: Optional[float] = None
@@ -113,7 +107,7 @@ class ConversationStatistics:
         if not timing_str:
             return timings
             
-        # Example: "ttfa 0.5s, tts_gen 1.2s, tts_play 2.1s, tts_total 3.3s, record 15.0s, stt 0.8s, total 19.1s"
+        # Example: "ttfa 0.5s, tts_gen 1.2s, tts_play 2.1s, tts_total 3.3s, total 3.8s"
         parts = timing_str.split(", ")
         for part in parts:
             if " " in part:
@@ -148,8 +142,6 @@ class ConversationStatistics:
             tts_generation=timings.get('tts_gen'),
             tts_playback=timings.get('tts_play'),
             tts_total=timings.get('tts_total'),
-            stt_processing=timings.get('stt'),
-            recording_duration=timings.get('record'),
             total_time=timings.get('total'),
             transport=transport,
             voice_provider=voice_provider,
@@ -183,7 +175,6 @@ class ConversationStatistics:
             ttfa_values = safe_values(successful_metrics, 'ttfa')
             tts_gen_values = safe_values(successful_metrics, 'tts_generation')
             tts_play_values = safe_values(successful_metrics, 'tts_playback')
-            stt_values = safe_values(successful_metrics, 'stt_processing')
             total_values = safe_values(successful_metrics, 'total_time')
             
             # Count provider usage
@@ -222,12 +213,7 @@ class ConversationStatistics:
                 avg_tts_playback=safe_stat(tts_play_values, mean),
                 min_tts_playback=safe_stat(tts_play_values, min),
                 max_tts_playback=safe_stat(tts_play_values, max),
-                
-                # STT statistics
-                avg_stt_processing=safe_stat(stt_values, mean),
-                min_stt_processing=safe_stat(stt_values, min),
-                max_stt_processing=safe_stat(stt_values, max),
-                
+
                 # Total time statistics
                 avg_total_time=safe_stat(total_values, mean),
                 min_total_time=safe_stat(total_values, min),
@@ -303,10 +289,7 @@ class ConversationStatistics:
             
             if stats.avg_tts_playback is not None:
                 lines.append(format_stat("TTS Playback:", stats.avg_tts_playback, stats.min_tts_playback, stats.max_tts_playback))
-            
-            if stats.avg_stt_processing is not None:
-                lines.append(format_stat("STT Processing:", stats.avg_stt_processing, stats.min_stt_processing, stats.max_stt_processing))
-            
+
             if stats.avg_total_time is not None:
                 lines.append(format_stat("Total Turnaround:", stats.avg_total_time, stats.min_total_time, stats.max_total_time))
         

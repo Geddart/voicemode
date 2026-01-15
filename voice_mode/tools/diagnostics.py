@@ -31,14 +31,13 @@ async def voice_mode_info() -> str:
     info.append(f"\nProvider Registry:")
     await provider_registry.initialize()
     
-    for service_type in ["tts", "stt"]:
-        info.append(f"\n{service_type.upper()} Endpoints:")
-        for url, endpoint in provider_registry.registry[service_type].items():
-            # Show status based on whether endpoint has an error
-            status = "❌" if endpoint.last_error else "✅"
-            info.append(f"  {status} {url} ({endpoint.provider_type})")
-            if service_type == "tts" and endpoint.voices:
-                info.append(f"     Voices: {', '.join(endpoint.voices[:3])}...")
+    info.append(f"\nTTS Endpoints:")
+    for url, endpoint in provider_registry.registry["tts"].items():
+        # Show status based on whether endpoint has an error
+        status = "❌" if endpoint.last_error else "✅"
+        info.append(f"  {status} {url} ({endpoint.provider_type})")
+        if endpoint.voices:
+            info.append(f"     Voices: {', '.join(endpoint.voices[:3])}...")
     
     # Check which provider would be selected
     try:

@@ -20,10 +20,6 @@ class TestProviderTypeDetection:
         assert detect_provider_type("http://127.0.0.1:8880/v1") == "kokoro"
         assert detect_provider_type("http://192.168.1.100:8880/v1") == "kokoro"
     
-    def test_detect_whisper(self):
-        assert detect_provider_type("http://127.0.0.1:2022/v1") == "whisper"
-        assert detect_provider_type("http://127.0.0.1:2022/v1") == "whisper"
-    
     def test_detect_generic_local(self):
         assert detect_provider_type("http://127.0.0.1:9999/v1") == "local"
         assert detect_provider_type("http://127.0.0.1/api") == "local"

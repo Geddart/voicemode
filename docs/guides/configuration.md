@@ -18,7 +18,6 @@ export OPENAI_API_KEY="your-api-key"
 ```bash
 # Install local services (auto-start on boot)
 voicemode kokoro install
-voicemode whisper install
 # VoiceMode auto-detects them!
 ```
 
@@ -76,12 +75,8 @@ When used as an MCP server, add to your Claude or other MCP client configuration
 ### API Keys and Authentication
 
 ```bash
-# OpenAI API Key (for cloud TTS/STT)
+# OpenAI API Key (for cloud TTS)
 OPENAI_API_KEY=sk-...
-
-# LiveKit credentials (for room-based voice)
-LIVEKIT_API_KEY=devkey          # Default for local dev
-LIVEKIT_API_SECRET=secret        # Default for local dev
 ```
 
 ### Voice Services
@@ -109,18 +104,6 @@ VOICEMODE_TTS_MODEL=tts-1-hd
 VOICEMODE_TTS_SPEED=1.0
 ```
 
-#### Speech-to-Text (STT)
-
-```bash
-# STT Service URLs
-VOICEMODE_STT_BASE_URLS=http://127.0.0.1:2022/v1,https://api.openai.com/v1
-
-# Whisper configuration
-VOICEMODE_WHISPER_MODEL=large-v2    # Model size
-VOICEMODE_WHISPER_LANGUAGE=auto     # Language detection
-VOICEMODE_WHISPER_PORT=2022         # Server port
-```
-
 ### Audio Configuration
 
 ```bash
@@ -141,39 +124,13 @@ VOICEMODE_SAMPLE_RATE=24000         # Sample rate (Hz)
 ### Audio Feedback
 
 ```bash
-# Chimes when recording starts/stops
+# Chimes when audio starts/stops
 VOICEMODE_AUDIO_FEEDBACK=true
 VOICEMODE_FEEDBACK_STYLE=whisper    # or "shout"
 
 # Silence around chimes (for Bluetooth)
 VOICEMODE_CHIME_PRE_DELAY=1.0   # Seconds before
 VOICEMODE_CHIME_POST_DELAY=0.5  # Seconds after
-```
-
-### Voice Activity Detection
-
-```bash
-# VAD Aggressiveness (0-3)
-# 0: Least aggressive (captures more)
-# 3: Most aggressive (filters more)
-VOICEMODE_VAD_AGGRESSIVENESS=2
-
-# Silence detection
-VOICEMODE_SILENCE_THRESHOLD=3.0     # Seconds of silence
-VOICEMODE_MIN_RECORDING_TIME=0.5    # Minimum recording
-VOICEMODE_MAX_RECORDING_TIME=120.0  # Maximum recording
-```
-
-### LiveKit Configuration
-
-```bash
-# Server settings
-LIVEKIT_URL=ws://127.0.0.1:7880
-LIVEKIT_PORT=7880
-
-# Room settings
-VOICEMODE_LIVEKIT_ROOM_PREFIX=voicemode
-VOICEMODE_LIVEKIT_AUTO_CREATE=true
 ```
 
 ### Local Service Paths
@@ -234,9 +191,7 @@ This allows different projects to have different voice settings without changing
 
 VoiceMode automatically discovers running local services:
 
-1. **Whisper STT**: Checks `http://127.0.0.1:2022/v1`
-2. **Kokoro TTS**: Checks `http://127.0.0.1:8880/v1`
-3. **LiveKit**: Checks `ws://127.0.0.1:7880`
+1. **Kokoro TTS**: Checks `http://127.0.0.1:8880/v1`
 
 No configuration needed when services run on default ports!
 
@@ -255,7 +210,6 @@ VoiceMode balances MCP compliance with user convenience:
 ```bash
 # No cloud services, everything local
 export VOICEMODE_TTS_BASE_URLS=http://127.0.0.1:8880/v1
-export VOICEMODE_STT_BASE_URLS=http://127.0.0.1:2022/v1
 export VOICEMODE_VOICES=af_sky
 ```
 

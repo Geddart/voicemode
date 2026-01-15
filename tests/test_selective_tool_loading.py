@@ -45,7 +45,7 @@ def test_selective_loading_multiple_tools():
         [sys.executable, "-c", """
 import os
 import sys
-os.environ['VOICEMODE_TOOLS_ENABLED'] = 'converse,statistics'
+os.environ['VOICEMODE_TOOLS_ENABLED'] = 'converse,service'
 
 from voice_mode import tools
 
@@ -53,7 +53,7 @@ loaded_modules = [m for m in sys.modules.keys() if 'voice_mode.tools' in m]
 print('LOADED:', sorted(loaded_modules))
 
 assert 'voice_mode.tools.converse' in sys.modules
-assert 'voice_mode.tools.statistics' in sys.modules
+assert 'voice_mode.tools.service' in sys.modules
 print('SUCCESS')
 """],
         capture_output=True,
@@ -185,12 +185,12 @@ def test_whitespace_handling_in_tool_list():
 import os
 import sys
 
-os.environ['VOICEMODE_TOOLS_ENABLED'] = ' converse , statistics '
+os.environ['VOICEMODE_TOOLS_ENABLED'] = ' converse , service '
 
 from voice_mode import tools
 
 assert 'voice_mode.tools.converse' in sys.modules
-assert 'voice_mode.tools.statistics' in sys.modules
+assert 'voice_mode.tools.service' in sys.modules
 print('SUCCESS')
 """],
         capture_output=True,

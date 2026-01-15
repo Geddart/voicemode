@@ -27,7 +27,7 @@ Load the voicemode skill for voice conversation support: `/voicemode:voicemode`
 
 ## Project Overview
 
-VoiceMode is a Python package that provides voice interaction capabilities for AI assistants through the Model Context Protocol (MCP). It enables natural voice conversations with Claude Code and other AI coding assistants by integrating speech-to-text (STT) and text-to-speech (TTS) services.
+VoiceMode is a Python package that provides voice interaction capabilities for AI assistants through the Model Context Protocol (MCP). It enables natural voice conversations with Claude Code and other AI coding assistants by integrating text-to-speech (TTS) services.
 
 ## Key Commands
 
@@ -84,15 +84,15 @@ make docs-check
    - Handles FFmpeg availability checks and logging setup
 
 2. **Tool System (`voice_mode/tools/`)**
-   - **converse.py**: Primary voice conversation tool with TTS/STT integration
-   - **service.py**: Unified service management for Whisper/Kokoro
+   - **converse.py**: Primary voice conversation tool with TTS integration
+   - **service.py**: Unified service management for Kokoro
    - **providers.py**: Provider discovery and registry management
    - **devices.py**: Audio device detection and management
-   - Services subdirectory contains install/uninstall tools for Whisper and Kokoro
+   - Services subdirectory contains install/uninstall tools for Kokoro
    - See [Tool Loading Architecture](docs/reference/tool-loading-architecture.md) for internal details
 
 3. **Provider System (`voice_mode/providers.py`)**
-   - Dynamic discovery of OpenAI-compatible TTS/STT endpoints
+   - Dynamic discovery of OpenAI-compatible TTS endpoints
    - Health checking and failover support
    - Maintains registry of available voice services
 
@@ -104,13 +104,11 @@ make docs-check
 5. **Resources (`voice_mode/resources/`)**
    - MCP resources exposed for client access
    - Statistics, configuration, changelog, and version information
-   - Whisper model management
 
 ### Service Architecture
 
 The project supports multiple voice service backends:
-- **OpenAI API**: Cloud-based TTS/STT (requires API key)
-- **Whisper.cpp**: Local speech-to-text service
+- **OpenAI API**: Cloud-based TTS (requires API key)
 - **Kokoro**: Local text-to-speech with multiple voices
 
 Services can be installed and managed through MCP tools, with automatic service discovery and health checking.
@@ -143,7 +141,7 @@ Services can be installed and managed through MCP tools, with automatic service 
 Logs are stored in `~/.voicemode/`:
 - `logs/conversations/` - Voice exchange history (JSONL)
 - `logs/events/` - Operational events and errors
-- `audio/` - Saved TTS/STT audio files
+- `audio/` - Saved TTS audio files
 - `voicemode.env` - User configuration
 
 ## See Also

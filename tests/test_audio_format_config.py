@@ -17,16 +17,14 @@ class TestAudioFormatConfiguration:
     def test_default_audio_format(self):
         """Test that default audio format is pcm"""
         # Import after setting env vars
-        from voice_mode.config import AUDIO_FORMAT, TTS_AUDIO_FORMAT, STT_AUDIO_FORMAT
-        
+        from voice_mode.config import AUDIO_FORMAT, TTS_AUDIO_FORMAT
+
         assert AUDIO_FORMAT == "pcm"
         assert TTS_AUDIO_FORMAT == "pcm"  # Default changed to PCM for optimal streaming
-        assert STT_AUDIO_FORMAT == "mp3"  # PCM not supported by OpenAI Whisper, defaults to mp3
     
     @patch.dict(os.environ, {
         'VOICEMODE_AUDIO_FORMAT': 'mp3',
         'VOICEMODE_TTS_AUDIO_FORMAT': 'flac',
-        'VOICEMODE_STT_AUDIO_FORMAT': 'wav'
     })
     def test_custom_audio_formats(self):
         """Test custom audio format configuration"""
@@ -34,51 +32,42 @@ class TestAudioFormatConfiguration:
         import importlib
         import voice_mode.config
         importlib.reload(voice_mode.config)
-        
-        from voice_mode.config import AUDIO_FORMAT, TTS_AUDIO_FORMAT, STT_AUDIO_FORMAT
-        
+
+        from voice_mode.config import AUDIO_FORMAT, TTS_AUDIO_FORMAT
+
         assert AUDIO_FORMAT == "mp3"
         assert TTS_AUDIO_FORMAT == "flac"
-        assert STT_AUDIO_FORMAT == "wav"
     
     def test_validate_audio_format(self):
-        """Test audio format validation for providers"""
+        """Test audio format validation for TTS providers"""
         from voice_mode.config import validate_audio_format
-        
+
         # OpenAI supports opus
-        assert validate_audio_format("opus", "openai", "tts") == "opus"
-        
+        assert validate_audio_format("opus", "openai") == "opus"
+
         # Kokoro now supports opus
-        assert validate_audio_format("opus", "kokoro", "tts") == "opus"
-        
-        # Whisper supports wav
-        assert validate_audio_format("wav", "whisper-local", "stt") == "wav"
-        
+        assert validate_audio_format("opus", "kokoro") == "opus"
+
         # Kokoro now supports pcm
-        assert validate_audio_format("pcm", "kokoro", "tts") == "pcm"
-        
+        assert validate_audio_format("pcm", "kokoro") == "pcm"
+
         # Invalid format (aac) for Kokoro should fallback
-        assert validate_audio_format("aac", "kokoro", "tts") in ["mp3", "opus", "flac", "wav", "pcm"]
+        assert validate_audio_format("aac", "kokoro") in ["mp3", "opus", "flac", "wav", "pcm"]
     
     def test_get_provider_supported_formats(self):
-        """Test getting supported formats for providers"""
+        """Test getting supported formats for TTS providers"""
         from voice_mode.config import get_provider_supported_formats
-        
+
         # OpenAI TTS formats
-        openai_tts = get_provider_supported_formats("openai", "tts")
+        openai_tts = get_provider_supported_formats("openai")
         assert "opus" in openai_tts
         assert "mp3" in openai_tts
         assert "wav" in openai_tts
-        
+
         # Kokoro TTS formats
-        kokoro_tts = get_provider_supported_formats("kokoro", "tts")
+        kokoro_tts = get_provider_supported_formats("kokoro")
         assert "mp3" in kokoro_tts
         assert "wav" in kokoro_tts
-        
-        # Whisper STT formats
-        whisper_stt = get_provider_supported_formats("whisper-local", "stt")
-        assert "wav" in whisper_stt
-        assert "mp3" in whisper_stt
     
     def test_get_audio_loader_for_format(self):
         """Test getting correct audio loader for formats"""

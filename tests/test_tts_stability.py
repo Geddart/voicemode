@@ -111,18 +111,17 @@ class TestTTSStability:
     @pytest.mark.asyncio
     async def test_http_client_cleanup(self, mock_openai_client):
         """Test that HTTP clients are properly cleaned up"""
-        # Set up mock clients
+        # Set up mock clients (TTS only)
         openai_clients = {
-            'stt': mock_openai_client,
             'tts': mock_openai_client
         }
-        
+
         # Run cleanup
         await cleanup(openai_clients)
-        
+
         # Verify HTTP clients were closed
         assert mock_openai_client._client.aclose.called
-        assert mock_openai_client._client.aclose.call_count == 2  # Once for STT, once for TTS
+        assert mock_openai_client._client.aclose.call_count == 1  # Once for TTS
     
     @pytest.mark.skip(reason="httpx.Timeout API changed")
     @pytest.mark.asyncio

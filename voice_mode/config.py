@@ -92,17 +92,11 @@ def load_voicemode_env():
 # Enable debug mode (true/false)
 # VOICEMODE_DEBUG=false
 
-# Enable VAD debug logging (true/false)
-# VOICEMODE_VAD_DEBUG=false
-
-# Save all audio and transcriptions (true/false)
+# Save all audio (true/false)
 # VOICEMODE_SAVE_ALL=false
 
 # Save audio files (true/false)
 # VOICEMODE_SAVE_AUDIO=false
-
-# Save transcription files (true/false)
-# VOICEMODE_SAVE_TRANSCRIPTIONS=false
 
 # Skip TTS for faster text-only responses (true/false)
 # VOICEMODE_SKIP_TTS=false
@@ -144,9 +138,6 @@ def load_voicemode_env():
 # Comma-separated list of TTS endpoints
 # VOICEMODE_TTS_BASE_URLS=http://127.0.0.1:8880/v1,https://api.openai.com/v1
 
-# Comma-separated list of STT endpoints
-# VOICEMODE_STT_BASE_URLS=http://127.0.0.1:2022/v1,https://api.openai.com/v1
-
 # Comma-separated list of preferred voices
 # VOICEMODE_VOICES=af_sky,alloy
 
@@ -179,39 +170,8 @@ def load_voicemode_env():
 # VOICEMODE_KOKORO_DEFAULT_VOICE=af_sky
 
 #############
-# LiveKit Configuration
+# Audio Configuration
 #############
-
-# LiveKit server port (default: 7880)
-# VOICEMODE_LIVEKIT_PORT=7880
-
-# Frontend server host (default: 127.0.0.1)
-# VOICEMODE_FRONTEND_HOST=127.0.0.1
-
-# Frontend server port (default: 3000)
-# VOICEMODE_FRONTEND_PORT=3000
-
-#############
-# Recording & Voice Activity Detection
-#############
-
-# Default maximum listening duration in seconds (default: 120)
-# VOICEMODE_DEFAULT_LISTEN_DURATION=120.0
-
-# Disable silence detection for noisy environments (true/false)
-# VOICEMODE_DISABLE_SILENCE_DETECTION=false
-
-# VAD aggressiveness level 0-3, higher = more strict (default: 2)
-# VOICEMODE_VAD_AGGRESSIVENESS=2
-
-# Silence threshold in milliseconds before stopping (default: 1000)
-# VOICEMODE_SILENCE_THRESHOLD_MS=1000
-
-# Minimum recording duration in seconds (default: 0.5)
-# VOICEMODE_MIN_RECORDING_DURATION=0.5
-
-# Initial silence grace period before VAD starts (default: 1.0)
-# VOICEMODE_INITIAL_SILENCE_GRACE_PERIOD=1.0
 
 # Audio feedback chime timing
 # Silence before chime in seconds - helps Bluetooth devices wake up (default: 0.1)
@@ -220,23 +180,8 @@ def load_voicemode_env():
 # Silence after chime in seconds - prevents cutoff (default: 0.2)
 # VOICEMODE_CHIME_TRAILING_SILENCE=0.2
 
-#############
-# Audio Format Configuration
-#############
-
-# Global audio format: pcm, opus, mp3, wav, flac, aac (default: pcm)
-# VOICEMODE_AUDIO_FORMAT=pcm
-
-# TTS-specific format override (default: pcm for optimal streaming)
+# TTS audio format (default: pcm for optimal streaming)
 # VOICEMODE_TTS_AUDIO_FORMAT=pcm
-
-# STT-specific format override (default: mp3 if global format is pcm, otherwise uses global format)
-# VOICEMODE_STT_AUDIO_FORMAT=mp3
-
-# Format-specific quality settings
-# VOICEMODE_OPUS_BITRATE=32000
-# VOICEMODE_MP3_BITRATE=64k
-# VOICEMODE_AAC_BITRATE=64k
 
 #############
 # Streaming Configuration
@@ -323,15 +268,8 @@ TTS \\bAPI\\b A P I # API as individual letters
 # API Keys (set these in your environment for security)
 #############
 
-# OpenAI API key for cloud TTS/STT
+# OpenAI API key for cloud TTS
 # OPENAI_API_KEY=your-key-here
-
-# LiveKit server URL
-# LIVEKIT_URL=ws://127.0.0.1:7880
-
-# LiveKit API credentials
-# LIVEKIT_API_KEY=devkey
-# LIVEKIT_API_SECRET=secret
 '''
         with open(default_path, 'w') as f:
             f.write(default_config)
@@ -409,7 +347,6 @@ BASE_DIR = expand_path(os.getenv("VOICEMODE_BASE_DIR", str(Path.home() / ".voice
 
 # Unified directory structure
 AUDIO_DIR = BASE_DIR / "audio"
-TRANSCRIPTIONS_DIR = BASE_DIR / "transcriptions"
 LOGS_DIR = BASE_DIR / "logs"
 # CONFIG_DIR = BASE_DIR / "config"  # Removed - config stored in .voicemode.env file instead
 MODELS_DIR = expand_path(os.getenv("VOICEMODE_MODELS_DIR", str(BASE_DIR / "models")))
@@ -417,7 +354,6 @@ MODELS_DIR = expand_path(os.getenv("VOICEMODE_MODELS_DIR", str(BASE_DIR / "model
 # Debug configuration
 DEBUG = os.getenv("VOICEMODE_DEBUG", "").lower() in ("true", "1", "yes", "on")
 TRACE_DEBUG = os.getenv("VOICEMODE_DEBUG", "").lower() == "trace"
-VAD_DEBUG = os.getenv("VOICEMODE_VAD_DEBUG", "").lower() in ("true", "1", "yes", "on")
 DEBUG_DIR = LOGS_DIR / "debug"  # Debug files now go under logs
 
 # Master save-all configuration
@@ -426,7 +362,6 @@ SAVE_ALL = os.getenv("VOICEMODE_SAVE_ALL", "").lower() in ("true", "1", "yes", "
 # Audio saving configuration
 # Enable if SAVE_ALL is true, DEBUG is true, or individually enabled
 SAVE_AUDIO = SAVE_ALL or DEBUG or os.getenv("VOICEMODE_SAVE_AUDIO", "").lower() in ("true", "1", "yes", "on")
-SAVE_TRANSCRIPTIONS = SAVE_ALL or DEBUG or os.getenv("VOICEMODE_SAVE_TRANSCRIPTIONS", "").lower() in ("true", "1", "yes", "on")
 
 # Audio feedback configuration
 AUDIO_FEEDBACK_ENABLED = os.getenv("VOICEMODE_AUDIO_FEEDBACK", "true").lower() in ("true", "1", "yes", "on")
@@ -537,9 +472,8 @@ def parse_comma_list(env_var: str, fallback: str) -> list:
     value = os.getenv(env_var, fallback)
     return [item.strip() for item in value.split(",") if item.strip()]
 
-# New provider endpoint lists configuration
+# Provider endpoint lists configuration
 TTS_BASE_URLS = parse_comma_list("VOICEMODE_TTS_BASE_URLS", "http://127.0.0.1:8880/v1,https://api.openai.com/v1")
-STT_BASE_URLS = parse_comma_list("VOICEMODE_STT_BASE_URLS", "http://127.0.0.1:2022/v1,https://api.openai.com/v1")
 TTS_VOICES = parse_comma_list("VOICEMODE_VOICES", "af_sky,alloy")
 TTS_MODELS = parse_comma_list("VOICEMODE_TTS_MODELS", "tts-1,tts-1-hd,gpt-4o-mini-tts")
 
@@ -590,24 +524,12 @@ def reload_configuration():
     load_voicemode_env()
     
     # Update global configuration variables
-    global TTS_VOICES, TTS_MODELS, TTS_BASE_URLS, STT_BASE_URLS
+    global TTS_VOICES, TTS_MODELS, TTS_BASE_URLS
     TTS_BASE_URLS = parse_comma_list("VOICEMODE_TTS_BASE_URLS", "http://127.0.0.1:8880/v1,https://api.openai.com/v1")
-    STT_BASE_URLS = parse_comma_list("VOICEMODE_STT_BASE_URLS", "http://127.0.0.1:2022/v1,https://api.openai.com/v1")
     TTS_VOICES = parse_comma_list("VOICEMODE_VOICES", "af_sky,alloy")
     TTS_MODELS = parse_comma_list("VOICEMODE_TTS_MODELS", "tts-1,tts-1-hd,gpt-4o-mini-tts")
-    
+
     logger.info("Configuration reloaded successfully")
-
-# Legacy variables have been removed - use the new list-based configuration:
-# - VOICEMODE_TTS_BASE_URLS (comma-separated list)
-# - VOICEMODE_STT_BASE_URLS (comma-separated list)
-# - VOICEMODE_VOICES (comma-separated list)
-# - VOICEMODE_TTS_MODELS (comma-separated list)
-
-# LiveKit configuration
-LIVEKIT_URL = os.getenv("LIVEKIT_URL", "ws://127.0.0.1:7880")
-LIVEKIT_API_KEY = os.getenv("LIVEKIT_API_KEY", "devkey")
-LIVEKIT_API_SECRET = os.getenv("LIVEKIT_API_SECRET", "secret")
 
 # ==================== KOKORO CONFIGURATION ====================
 
@@ -616,18 +538,6 @@ KOKORO_PORT = int(os.getenv("VOICEMODE_KOKORO_PORT", "8880"))
 KOKORO_MODELS_DIR = expand_path(os.getenv("VOICEMODE_KOKORO_MODELS_DIR", str(BASE_DIR / "models" / "kokoro")))
 KOKORO_CACHE_DIR = expand_path(os.getenv("VOICEMODE_KOKORO_CACHE_DIR", str(BASE_DIR / "cache" / "kokoro")))
 KOKORO_DEFAULT_VOICE = os.getenv("VOICEMODE_KOKORO_DEFAULT_VOICE", "af_sky")
-
-# ==================== LIVEKIT CONFIGURATION ====================
-
-# LiveKit-specific configuration
-LIVEKIT_PORT = int(os.getenv("VOICEMODE_LIVEKIT_PORT", "7880"))
-LIVEKIT_URL = os.getenv("LIVEKIT_URL", f"ws://localhost:{LIVEKIT_PORT}")
-LIVEKIT_API_KEY = os.getenv("LIVEKIT_API_KEY", "devkey")
-LIVEKIT_API_SECRET = os.getenv("LIVEKIT_API_SECRET", "secret")
-
-# LiveKit Frontend configuration
-FRONTEND_HOST = os.getenv("VOICEMODE_FRONTEND_HOST", "127.0.0.1")
-FRONTEND_PORT = int(os.getenv("VOICEMODE_FRONTEND_PORT", "3000"))
 
 # ==================== SERVICE MANAGEMENT CONFIGURATION ====================
 
@@ -646,31 +556,6 @@ SOUNDFONTS_ENABLED = env_bool("VOICEMODE_SOUNDFONTS_ENABLED", True)
 SAMPLE_RATE = 24000  # Standard TTS sample rate for both OpenAI and Kokoro
 CHANNELS = 1
 
-# ==================== SILENCE DETECTION CONFIGURATION ====================
-
-# Disable silence detection (useful for noisy environments)
-# Silence detection is enabled by default
-DISABLE_SILENCE_DETECTION = os.getenv("VOICEMODE_DISABLE_SILENCE_DETECTION", "false").lower() in ("true", "1", "yes", "on")
-
-# VAD (Voice Activity Detection) configuration
-VAD_AGGRESSIVENESS = int(os.getenv("VOICEMODE_VAD_AGGRESSIVENESS", "2"))  # 0-3, higher = more aggressive
-SILENCE_THRESHOLD_MS = int(os.getenv("VOICEMODE_SILENCE_THRESHOLD_MS", "1000"))  # Stop after 1000ms (1 second) of silence
-MIN_RECORDING_DURATION = float(os.getenv("VOICEMODE_MIN_RECORDING_DURATION", "0.5"))  # Minimum 0.5s recording
-VAD_CHUNK_DURATION_MS = 30  # VAD frame size (must be 10, 20, or 30ms)
-INITIAL_SILENCE_GRACE_PERIOD = float(os.getenv("VOICEMODE_INITIAL_SILENCE_GRACE_PERIOD", "1"))  # No initial silence grace period by default
-
-# Default listen duration for converse tool
-DEFAULT_LISTEN_DURATION = float(os.getenv("VOICEMODE_DEFAULT_LISTEN_DURATION", "120.0"))  # Default 120s listening time
-
-# Repeat phrase detection for audio replay
-REPEAT_PHRASES = parse_comma_list("VOICEMODE_REPEAT_PHRASES", "repeat,say that again,pardon,what,come again")
-
-# Wait phrase detection for pausing conversation
-WAIT_PHRASES = parse_comma_list("VOICEMODE_WAIT_PHRASES", "wait")
-
-# Wait duration in seconds when wait phrase is detected
-WAIT_DURATION = float(os.getenv("VOICEMODE_WAIT_DURATION", "60.0"))  # Default 60s (1 minute)
-
 # Audio feedback chime configuration
 # Leading silence before chimes to allow Bluetooth devices to wake up
 CHIME_LEADING_SILENCE = float(os.getenv("VOICEMODE_CHIME_LEADING_SILENCE", "0.1"))  # Default 0.1s - minimal delay for Bluetooth
@@ -681,33 +566,8 @@ CHIME_TRAILING_SILENCE = float(os.getenv("VOICEMODE_CHIME_TRAILING_SILENCE", "0.
 AUDIO_FORMAT = os.getenv("VOICEMODE_AUDIO_FORMAT", "pcm").lower()
 TTS_AUDIO_FORMAT = os.getenv("VOICEMODE_TTS_AUDIO_FORMAT", "pcm").lower()  # Default to PCM for optimal streaming
 
-# STT upload format - compressed for bandwidth efficiency
-# Supported: mp3, wav, flac, m4a, ogg (must be supported by STT provider)
-# Default: mp3 (32kbps, ~90% bandwidth reduction vs WAV)
-STT_AUDIO_FORMAT = os.getenv("VOICEMODE_STT_AUDIO_FORMAT", "mp3" if AUDIO_FORMAT == "pcm" else AUDIO_FORMAT).lower()
-
-# STT save format - format for saved recordings when SAVE_AUDIO is enabled
-# Supported: wav, mp3, flac (wav recommended for full quality archival)
-# Default: wav (uncompressed, full quality)
-STT_SAVE_FORMAT = os.getenv("VOICEMODE_STT_SAVE_FORMAT", "wav").lower()
-
-# STT compression mode - controls when audio is compressed before upload
-# Options:
-#   auto   - Compress for remote endpoints, skip for local (default)
-#            Saves ~200-800ms transcode time for local endpoints where
-#            bandwidth isn't a bottleneck. Remote uploads benefit from
-#            smaller file sizes (MP3 is ~90% smaller than WAV).
-#   always - Always compress regardless of endpoint type
-#   never  - Never compress, always send WAV (highest quality, larger files)
-STT_COMPRESS = os.getenv("VOICEMODE_STT_COMPRESS", "auto").lower()
-
-# Validate STT_COMPRESS value
-if STT_COMPRESS not in ("auto", "always", "never"):
-    STT_COMPRESS = "auto"
-
 # Supported audio formats
 SUPPORTED_AUDIO_FORMATS = ["pcm", "opus", "mp3", "wav", "flac", "aac"]
-SUPPORTED_SAVE_FORMATS = ["wav", "mp3", "flac"]  # Formats suitable for saving recordings
 
 # Validate formats (validation messages will be logged after logger is initialized)
 if AUDIO_FORMAT not in SUPPORTED_AUDIO_FORMATS:
@@ -718,17 +578,9 @@ if TTS_AUDIO_FORMAT not in SUPPORTED_AUDIO_FORMATS:
     _invalid_tts_format = TTS_AUDIO_FORMAT
     TTS_AUDIO_FORMAT = AUDIO_FORMAT
 
-if STT_AUDIO_FORMAT not in SUPPORTED_AUDIO_FORMATS:
-    _invalid_stt_format = STT_AUDIO_FORMAT
-    STT_AUDIO_FORMAT = AUDIO_FORMAT
-
-if STT_SAVE_FORMAT not in SUPPORTED_SAVE_FORMATS:
-    _invalid_stt_save_format = STT_SAVE_FORMAT
-    STT_SAVE_FORMAT = "wav"
-
 # Format-specific quality settings
 OPUS_BITRATE = int(os.getenv("VOICEMODE_OPUS_BITRATE", "32000"))  # Default 32kbps for voice
-MP3_BITRATE = os.getenv("VOICEMODE_MP3_BITRATE", "32k")  # Default 32kbps (optimal for speech per Whisper research)
+MP3_BITRATE = os.getenv("VOICEMODE_MP3_BITRATE", "32k")  # Default 32kbps
 AAC_BITRATE = os.getenv("VOICEMODE_AAC_BITRATE", "64k")  # Default 64kbps
 
 # ==================== STREAMING CONFIGURATION ====================
@@ -853,7 +705,6 @@ def initialize_directories():
     
     # Create all subdirectories
     AUDIO_DIR.mkdir(exist_ok=True)
-    TRANSCRIPTIONS_DIR.mkdir(exist_ok=True)
     LOGS_DIR.mkdir(exist_ok=True)
     # CONFIG_DIR.mkdir(exist_ok=True)  # Removed - config stored in .voicemode.env file instead
     
@@ -952,7 +803,7 @@ def get_debug_filename(prefix: str, extension: str) -> str:
     """Generate a timestamped filename for debug files.
     
     Args:
-        prefix: Prefix for the filename (e.g., 'stt-input', 'tts-output')
+        prefix: Prefix for the filename (e.g., 'tts-output', 'audio-debug')
         extension: File extension (e.g., 'wav', 'mp3')
     
     Returns:
@@ -980,49 +831,6 @@ def get_project_path() -> str:
     # Fall back to current working directory
     return os.getcwd()
 
-
-def save_transcription(text: str, prefix: str = "transcript", metadata: Optional[Dict] = None) -> Optional[Path]:
-    """Save a transcription to the transcriptions directory.
-    
-    Args:
-        text: The transcription text to save
-        prefix: Prefix for the filename (e.g., 'stt', 'conversation')
-        metadata: Optional metadata to include at the top of the file
-    
-    Returns:
-        Path to the saved file or None if saving is disabled
-    """
-    if not SAVE_TRANSCRIPTIONS:
-        return None
-    
-    try:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-        filename = f"{prefix}_{timestamp}.txt"
-        filepath = TRANSCRIPTIONS_DIR / filename
-        
-        content = []
-        
-        # Create metadata with project path
-        if metadata is None:
-            metadata = {}
-        metadata["project_path"] = get_project_path()
-        
-        # Add metadata header
-        content.append("--- METADATA ---")
-        for key, value in metadata.items():
-            content.append(f"{key}: {value}")
-        content.append("--- TRANSCRIPT ---")
-        content.append("")
-        
-        content.append(text)
-        
-        filepath.write_text("\n".join(content), encoding="utf-8")
-        logger.debug(f"Transcription saved to: {filepath}")
-        return filepath
-        
-    except Exception as e:
-        logger.error(f"Failed to save transcription: {e}")
-        return None
 
 # ==================== SOUNDDEVICE WORKAROUND ====================
 
@@ -1101,63 +909,41 @@ if 'AUDIO_FORMAT' in locals() and '_invalid_audio_format' in locals():
 if 'TTS_AUDIO_FORMAT' in locals() and '_invalid_tts_format' in locals():
     logger.warning(f"Unsupported TTS audio format '{_invalid_tts_format}', falling back to '{AUDIO_FORMAT}'")
 
-if 'STT_AUDIO_FORMAT' in locals() and '_invalid_stt_format' in locals():
-    logger.warning(f"Unsupported STT audio format '{_invalid_stt_format}', falling back to '{AUDIO_FORMAT}'")
 
 # ==================== AUDIO FORMAT UTILITIES ====================
 
-def get_provider_supported_formats(provider: str, operation: str = "tts") -> list:
-    """Get list of audio formats supported by a provider.
-    
+def get_provider_supported_formats(provider: str) -> list:
+    """Get list of TTS audio formats supported by a provider.
+
     Args:
-        provider: Provider name (e.g., 'openai', 'kokoro', 'whisper-local')
-        operation: 'tts' or 'stt'
-    
+        provider: Provider name (e.g., 'openai', 'kokoro')
+
     Returns:
         List of supported format strings
     """
-    # Provider format capabilities
-    # Based on API documentation and testing
+    # TTS provider format capabilities
     provider_formats = {
-        # TTS providers
-        "openai": {
-            "tts": ["opus", "mp3", "aac", "flac", "wav", "pcm"],
-            "stt": ["mp3", "opus", "wav", "flac", "m4a", "webm"]
-        },
-        "kokoro": {
-            "tts": ["mp3", "opus", "flac", "wav", "pcm"],  # AAC is not currently supported
-            "stt": []  # Kokoro is TTS only
-        },
-        # STT providers
-        "whisper-local": {
-            "tts": [],  # Whisper is STT only
-            "stt": ["wav", "mp3", "opus", "flac", "m4a"]
-        },
-        "openai-whisper": {
-            "tts": [],  # Whisper is STT only
-            "stt": ["mp3", "opus", "wav", "flac", "m4a", "webm"]
-        }
+        "openai": ["opus", "mp3", "aac", "flac", "wav", "pcm"],
+        "kokoro": ["mp3", "opus", "flac", "wav", "pcm"],
     }
-    
-    provider_info = provider_formats.get(provider, {})
-    return provider_info.get(operation, [])
+
+    return provider_formats.get(provider, [])
 
 
-def validate_audio_format(format: str, provider: str, operation: str = "tts") -> str:
+def validate_audio_format(format: str, provider: str) -> str:
     """Validate and potentially adjust audio format based on provider capabilities.
-    
+
     Args:
         format: Requested audio format
         provider: Provider name
-        operation: 'tts' or 'stt'
-    
+
     Returns:
         Valid format for the provider (may differ from requested)
     """
-    supported = get_provider_supported_formats(provider, operation)
-    
+    supported = get_provider_supported_formats(provider)
+
     if not supported:
-        logger.warning(f"Provider '{provider}' does not support {operation} operation")
+        logger.warning(f"Provider '{provider}' not recognized")
         return format
     
     if format in supported:

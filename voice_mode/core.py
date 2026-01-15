@@ -27,7 +27,6 @@ from .utils import (
     log_tts_start,
     log_tts_first_audio
 )
-from .audio_player import NonBlockingAudioPlayer
 
 logger = logging.getLogger("voicemode")
 
@@ -129,8 +128,8 @@ def save_debug_file(data: bytes, prefix: str, extension: str, debug_dir: Path, d
         return None
 
 
-def get_openai_clients(api_key: str, stt_base_url: Optional[str] = None, tts_base_url: Optional[str] = None) -> dict:
-    """Initialize OpenAI clients for STT and TTS with connection pooling"""
+def get_openai_clients(api_key: str, tts_base_url: Optional[str] = None) -> dict:
+    """Initialize OpenAI client for TTS with connection pooling"""
     # Configure timeouts and connection pooling
     http_client_config = {
         'timeout': httpx.Timeout(30.0, connect=5.0),
@@ -138,20 +137,12 @@ def get_openai_clients(api_key: str, stt_base_url: Optional[str] = None, tts_bas
     }
 
     # Disable retries for local endpoints - they either work or don't
-    stt_max_retries = 0 if is_local_provider(stt_base_url) else 2
     tts_max_retries = 0 if is_local_provider(tts_base_url) else 2
 
-    # Create HTTP clients
-    stt_http_client = httpx.AsyncClient(**http_client_config)
+    # Create HTTP client
     tts_http_client = httpx.AsyncClient(**http_client_config)
 
     return {
-        'stt': AsyncOpenAI(
-            api_key=api_key,
-            base_url=stt_base_url,
-            http_client=stt_http_client,
-            max_retries=stt_max_retries
-        ),
         'tts': AsyncOpenAI(
             api_key=api_key,
             base_url=tts_base_url,
