@@ -461,18 +461,19 @@ ALWAYS_TRY_LOCAL = os.getenv("VOICEMODE_ALWAYS_TRY_LOCAL", "true").lower() in ("
 # Auto-start configuration
 AUTO_START_KOKORO = os.getenv("VOICEMODE_AUTO_START_KOKORO", "").lower() in ("true", "1", "yes", "on")
 
-# ==================== CONCH CONFIGURATION ====================
-# The conch is a coordination mechanism for multi-agent voice conversations
-# Only the agent holding the conch may speak
+# ==================== AUDIO MANAGER CONFIGURATION ====================
+# The audio manager is a centralized HTTP service for audio coordination
+# It provides multi-window queuing and hotkey-based pause/resume
 
-# Enable/disable the conch system entirely
-CONCH_ENABLED = os.getenv("VOICEMODE_CONCH_ENABLED", "true").lower() in ("true", "1", "yes", "on")
+# Audio manager HTTP server port
+AUDIO_MANAGER_PORT = int(os.getenv("VOICEMODE_AUDIO_MANAGER_PORT", "8881"))
 
-# Maximum time (seconds) to wait for conch when wait_for_conch=true
-CONCH_TIMEOUT = float(os.getenv("VOICEMODE_CONCH_TIMEOUT", "60"))
+# Auto-start the audio manager service when needed
+AUDIO_MANAGER_AUTO_START = env_bool("VOICEMODE_AUDIO_MANAGER_AUTO_START", True)
 
-# How often (seconds) to check if conch is free when waiting
-CONCH_CHECK_INTERVAL = float(os.getenv("VOICEMODE_CONCH_CHECK_INTERVAL", "0.5"))
+# Modifier key that pauses audio when held (for dictation with Wispr Flow, etc.)
+# Options: fn, ctrl, option, command, shift
+PAUSE_HOTKEY = os.getenv("VOICEMODE_PAUSE_HOTKEY", "fn").lower()
 
 
 def get_project_name() -> str:
@@ -512,6 +513,18 @@ def get_project_name() -> str:
 
 # Auto-detected project name (cached at import time)
 PROJECT_NAME = get_project_name()
+
+# Unique session ID per MCP server instance
+# This distinguishes between different Claude Code windows even if they have the same PROJECT_NAME
+import uuid
+SESSION_ID = str(uuid.uuid4())[:8]
+
+def get_session_project_id() -> str:
+    """Get a unique identifier combining project name and session ID.
+
+    Used for audio queue ordering to distinguish between Claude windows.
+    """
+    return f"{get_project_name()}:{SESSION_ID}"
 
 # ==================== SERVICE CONFIGURATION ====================
 

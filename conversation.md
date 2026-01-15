@@ -1,229 +1,296 @@
 # VoiceMode Session Log - January 2026
 
-## SESSION STATUS (January 14, 2026)
+## SESSION STATUS (January 15, 2026)
 
-**All features working!** ✅
+### CURRENT: Project Announcement for Queued Messages COMPLETE
 
-### Completed Features
-1. **Background TTS** - Returns in ~0.004s, audio plays independently
-2. **Startup chime** - Plays while TTS generates, no segfault
-3. **Multi-window queuing** - Messages queue and announce project name
+**When TTS messages are queued behind audio from a DIFFERENT project, the project name is now announced.**
 
-### To Continue Development
-Just say: "Read conversation.md for context" - all details are below.
+Example: "Update from voicemode: I've fixed the bug"
+
+#### Changes Made (January 15, 2026 - Session 3)
+
+1. **`voice_mode/audio_manager/service.py`**
+   - `reserve_slot()` now computes `should_announce` flag
+   - Checks if audio from different project is currently playing
+   - Checks if audio from different project is ahead in queue
+   - Returns `should_announce` in result dict
+
+2. **`voice_mode/core.py`**
+   - After reserving slot, checks `should_announce` flag
+   - Prepends "Update from {PROJECT_NAME}: " to message when true
+
+#### Key Design Decision: Project-Aware Logic
+
+Only announces when a DIFFERENT project's audio is ahead or playing. This prevents:
+- Same-window sequential messages from announcing
+- Same-window background mode rapid fire from announcing
+- Same-project chimes followed by TTS from announcing
+
+#### Test Status
+- 457 passing, 17 failing (no regressions from previous session)
+
+#### Testing Note (January 15, 2026 - Session 4)
+- **Project announcement verified working** after audio manager restart
+- The code was correct but the audio manager service was running old code
+- Fix: `service audio-manager restart` (or via MCP tool)
+
+#### Multi-Window Fix (January 15, 2026 - Session 4)
+
+**Problem:** All Claude windows sent "voicemode" as project name because MCP server config uses `--directory voicemode`.
+
+**Solution:** Added unique session ID per MCP server instance.
+
+**Changes:**
+1. **`voice_mode/config.py`**
+   - Added `SESSION_ID = uuid.uuid4()[:8]` - unique per MCP server
+   - Added `get_session_project_id()` - returns `"{project}:{session_id}"`
+
+2. **`voice_mode/audio_router.py`**
+   - Changed to use `get_session_project_id()` for audio queue identification
+   - Each Claude window now has unique ID like `voicemode:abc123`
+
+3. **`voice_mode/core.py`**
+   - Still uses `get_project_name()` for announcement text (no session ID)
+
+4. **`voice_mode/tools/service.py`**
+   - Implemented `logs` action for audio-manager
+   - Audio manager now logs to `~/.voicemode/logs/audio-manager/`
+
+5. **`voice_mode/audio_manager/service.py`**
+   - Added debug logging for `should_announce` decision
+
+**To test:** Both Claude windows must restart to get new session IDs.
 
 ---
 
-## Debugging Progress
+### PREVIOUS: Audio Architecture Overhaul COMPLETE
 
-### Feature 1: Background TTS Playback
+**All TTS audio now flows through centralized audio manager** (January 15, 2026)
 
-**Status:** ✅ FULLY WORKING (January 14, 2026)
+Implemented clean architecture where ALL audio (TTS, chimes, system sounds) routes through the audio manager service. This provides:
+- Multi-window queuing (no audio overlap between Claude windows)
+- Fn key pause/resume for dictation
+- Proper blocking support (/wait endpoint)
+- Priority queuing (chimes play before TTS)
 
-**What we tried:**
-1. Added `background` parameter through the call chain:
-   - `converse()` in tools/converse.py
-   - `text_to_speech_with_failover()` in tools/converse.py
-   - `simple_tts_failover()` in simple_failover.py
-   - `text_to_speech()` in core.py
+### Changes Made
 
-2. In `text_to_speech()`, when `background=True`:
-   - Call `player.play(samples, rate, blocking=False)`
-   - Skip `player.wait()` - return immediately
-   - Set `metrics['background'] = True`
+#### New Files
+- `voice_mode/audio_router.py` - Unified interface for routing all audio through audio manager
 
-**Issue found:** Streaming mode doesn't support background!
-- Default: `STREAMING_ENABLED=true` with PCM format
-- Streaming path (`stream_tts_audio`) doesn't pass `background` parameter
-- Streaming always waits for completion
+#### Modified Files
 
-**Fix applied:** Disable streaming when background=True (core.py line 269):
-```python
-use_streaming = STREAMING_ENABLED and validated_format in ["opus", "mp3", "pcm", "wav"] and not background
+1. **`voice_mode/audio_manager/player.py`** (BUG FIX)
+   - Fixed critical bug: `pause()` and `resume()` now always set `_is_paused` state
+   - Previously, if nothing was playing, pause() returned early without setting state
+   - This caused fn key press BEFORE audio arrives to be ignored
+
+2. **`voice_mode/audio_manager/service.py`**
+   - Added item completion tracking with `_item_events` dict
+   - Added `wait_for_item()` method for blocking wait support
+   - Added `_cleanup_item_event()` to prevent memory leaks (60s cleanup)
+   - Event created at queue time (before /wait can be called)
+
+3. **`voice_mode/audio_manager/api.py`**
+   - Added `POST /wait/{item_id}` endpoint
+   - Returns `{"completed": true}` when audio finishes
+   - Supports timeout query param (default 120s)
+
+4. **`voice_mode/audio_manager/client.py`**
+   - Added `wait_for_item(item_id, timeout)` method
+   - HTTP POST to `/wait/{item_id}?timeout={timeout}`
+
+5. **`voice_mode/streaming.py`**
+   - Removed `AudioStreamPlayer` class (dead code)
+   - Removed direct sounddevice usage
+   - `stream_pcm_audio()` - buffers chunks, routes through audio_router
+   - `stream_with_buffering()` - buffers, decodes, routes through audio_router
+   - Both support `blocking` parameter
+
+6. **`voice_mode/core.py`**
+   - `play_tts_chime()` - routes through audio_router (priority="high", blocking=False)
+   - `play_chime_start()` - routes through audio_router
+   - `play_chime_end()` - routes through audio_router
+   - `play_system_audio()` - routes through audio_router
+
+7. **`voice_mode/tools/converse.py`**
+   - Removed all Conch imports and logic
+   - Removed `conch` parameter from `_run_tts_in_background()`
+   - Simplified background mode (no more conch acquisition)
+   - Audio manager handles all coordination
+
+8. **`voice_mode/config.py`**
+   - Removed `CONCH_ENABLED`, `CONCH_TIMEOUT`, `CONCH_CHECK_INTERVAL`
+   - Removed `USE_AUDIO_MANAGER` (always enabled now)
+   - Kept: `AUDIO_MANAGER_PORT`, `AUDIO_MANAGER_AUTO_START`, `PAUSE_HOTKEY`
+
+#### Deleted Files
+- `voice_mode/conch.py` - File-locking system replaced by audio manager
+- `tests/test_conch.py` - Tests for removed conch system
+
+### Test Status
+
+**457 tests passing**, 17 failing (expected - tests need updating for new architecture)
+
+Failing tests are in:
+- `test_converse_critical_path.py` - Tests expect old conch behavior
+- `test_speed_parameter.py` - Tests don't set `background=False` explicitly
+- `test_wait_repeat_functionality.py` - Tests mock `NonBlockingAudioPlayer` instead of `audio_router`
+- `test_endpoint_info_attributes.py` - Related to converse behavior
+
+### Manual Testing Results (January 15, 2026)
+
+**Audio manager required restart** to pick up code changes.
+
+1. ✅ **Single window TTS**: Working
+2. ✅ **Fn key pause during playback**: Working - press fn pauses, release resumes
+
+### Changes Made (January 15, 2026 - Session 2)
+
+**Implemented reservation system for gapless multi-window playback:**
+
+1. **queue.py** - Added reservation support:
+   - `reserve()` - Reserve slot before TTS generation
+   - `fill()` - Fill slot with audio when ready
+   - Queue waits for items to be filled in order
+
+2. **service.py** - Added service methods:
+   - `reserve_slot()` and `fill_slot()` delegate to queue
+   - Chime rate-limiting (centralized across windows)
+
+3. **api.py** - Added endpoints:
+   - `POST /reserve` - Reserve a queue slot
+   - `POST /fill/{item_id}` - Fill reserved slot with audio
+   - `POST /chime-allowed` - Check/record chime permission
+
+4. **client.py** - Added client methods:
+   - `reserve()`, `fill()`, `chime_allowed()`
+
+5. **audio_router.py** - Added helpers:
+   - `reserve_slot()`, `fill_slot()`, `fill_slot_samples()`
+
+6. **core.py** - Updated TTS flow:
+   - Reserves slot BEFORE TTS generation
+   - Fills slot AFTER audio is ready
+   - Both streaming and buffered paths use reservation
+
+7. **streaming.py** - Updated to accept item_id:
+   - `stream_pcm_audio()`, `stream_tts_audio()`, `stream_with_buffering()`
+   - Uses fill_slot when item_id provided
+
+### Testing Required
+
+1. **Chime rate-limiting**: Wait 60s, trigger from two windows - only ONE chime
+2. **Multi-window ordering**: Window 1 (long), Window 2 (short) - Window 1 plays first
+3. **No gaps**: Messages play back-to-back without pauses
+
+4. **Multi-window queuing**:
+   - Open 2 Claude windows (different projects)
+   - Trigger TTS from both rapidly (within 1 second)
+   - Verify messages queue (no overlap)
+   - `curl localhost:8881/status` should show queue_length > 0 during overlap
+
+5. **Blocking behavior**:
+   - `curl localhost:8881/status` in a loop
+   - Trigger TTS with background=false (default)
+   - Verify converse() only returns AFTER audio finishes
+
+6. **Chime rate-limiting**:
+   - Wait 60+ seconds
+   - Speak → chime plays first
+   - Speak again within 60s → no chime
+
+7. **Audio manager auto-restart**:
+   - Kill audio manager: `pkill -f "voice_mode.audio_manager"`
+   - Trigger TTS → should auto-restart and play
+
+### Architecture
+
+```
+BEFORE (broken):
+  converse() → streaming.py → sounddevice (direct, no coordination)
+  Conch file-locking (bypassed when audio manager enabled)
+
+AFTER (clean):
+  ALL audio → audio_router → AudioManagerClient.speak() → HTTP /speak
+           → Audio Manager queue (thread-safe, priority-ordered)
+           → AudioPlaybackManager.play() → sounddevice
+           → HotkeyMonitor for pause/resume
 ```
 
-**Test result:** With chime disabled (`VOICEMODE_TTS_CHIME=false`), background mode works:
+---
+
+## Previous Sessions
+
+(Previous content below for reference)
+
+### Fn Key Pause Feature (January 15, 2026)
+
+Holding the MacBook fn key pauses TTS audio, releasing resumes it.
+
+**Audio Manager Status:**
+- Running on port 8881
+- Fn key detection working via macOS event tap
+- Creates/removes `~/.voicemode/dictating.lock` when fn pressed/released
+
+**Important Note:**
+- Logitech external keyboard fn key does NOT work (firmware-level handling)
+- MacBook built-in fn key works correctly (flag 0x800100 detected)
+
+---
+
+### Audio Manager HTTP API (port 8881)
+- `GET /health` - Health check
+- `GET /status` - Current status (playing, queue, dictation, hotkey)
+- `POST /speak` - Queue audio for playback (immediate)
+- `POST /reserve` - Reserve queue slot before TTS generation
+- `POST /fill/{item_id}` - Fill reserved slot with audio
+- `POST /wait/{item_id}` - Wait for specific audio to finish
+- `POST /chime-allowed` - Check/record chime permission (rate-limiting)
+- `POST /pause` - Pause playback
+- `POST /resume` - Resume playback
+- `POST /clear` - Clear queue
+- `POST /stop` - Stop playback
+
+### Service Management
+```bash
+# Via MCP tool
+service audio-manager status
+service audio-manager start
+service audio-manager stop
+service audio-manager restart
+
+# Directly
+uv run python -m voice_mode.audio_manager --port 8881 --hotkey fn --debug
 ```
-Result: ✓ Speaking in background (gen: 1.5s, playing in background)
-```
-
-**Final fix (January 14):** Previous "background" only skipped playback wait, not TTS generation wait.
-- Added `_run_tts_in_background()` helper function in converse.py
-- When `background=True`, spawn entire TTS operation as `asyncio.create_task()`
-- Return immediately with "✓ Speaking in background"
-- Background task handles conch, TTS generation, and playback independently
-
-**Test results after final fix:**
-- `background=True`: Returns in **0.005s** (instant!)
-- `background=False`: Returns after 4.38s (waits for playback)
-- Audio plays correctly in both modes
-
-**Default changed (January 14):** Changed `background` default from `False` to `True` so Claude Code returns immediately without needing to explicitly request it. Claude Code can now continue working while audio plays.
-
-### Feature 3: Multi-Window Audio Queuing
-
-**Status:** ✅ IMPLEMENTED (January 14, 2026)
-
-**What we implemented:**
-1. Auto-detect project name (git repo root → CWD → "unknown")
-2. Added `queue` parameter to converse() (default: True)
-3. When message has to wait for another, prepend "Message from {project}:"
-4. Updated Conch to store project name in lock file
-
-**Test results:**
-- First window starts speaking
-- Second window detects conch held, waits for first to finish
-- Second window announces: "Message from voicemode: ..."
-- Messages never overlap or get rejected
-
-### Feature 2: Startup Chime
-
-**Status:** ✅ VERIFIED WORKING (January 14, 2026) - Root cause identified and patched in `audio_player.py`
-
-**What we implemented:**
-1. Added `play_tts_chime()` function in core.py (lines 779-828)
-2. Called at start of `text_to_speech()` (line 215)
-3. Config options: `TTS_CHIME_ENABLED=true`, `TTS_CHIME_NAME=Pling`
-4. Chime files in: `voice_mode/data/soundfonts/default/chimes/`
-
-**Issue found:** Concurrent audio playback causes SEGFAULT (exit code 139)
-- Chime plays with `NonBlockingAudioPlayer(blocking=False)`
-- TTS then tries to play with another `NonBlockingAudioPlayer`
-- sounddevice crashes when two streams are active
-
-**Test results:**
-- Chime alone: WORKS (`await play_tts_chime()` plays fine)
-- Chime + TTS together: SEGFAULT
-- Chime disabled + TTS: WORKS
-
-**What we tried:**
-1. Made chime blocking (`blocking=True`) - WORKS but defeats purpose (chime is 3.78s long!)
-2. Reverted to non-blocking - need to find concurrent audio solution
-
-**Root cause identified (January 14):**
-- `NonBlockingAudioPlayer` doesn't keep itself alive when `blocking=False`
-- When `play_tts_chime()` returns, the `player` variable goes out of scope
-- Python's garbage collector frees the player while sounddevice stream is still active
-- When TTS then creates a second stream, PortAudio accesses freed memory → SEGFAULT
-
-**Fix applied to `voice_mode/audio_player.py`:**
-- Added module-level `_active_players` list to keep players alive
-- Players register themselves in `play()` when `blocking=False`
-- Players unregister in callback when playback completes
-- Also unregister in `wait()` and `stop()` for manual cleanup
-
-**Test results after fix:**
-- Two concurrent players: SUCCESS (both play without crash)
-- GC during playback: SUCCESS (registry keeps player alive)
-- Different sample rates: SUCCESS (44100Hz chime + 24000Hz TTS)
-- Full integration test (January 14): SUCCESS
-  - `VOICEMODE_TTS_CHIME=true` with converse tool
-  - Chime plays in background, TTS generates, speech plays
-  - Result: "✓ Message spoken successfully (gen: 1.2s, play: 2.8s)"
-
----
-
-## Key Findings
-
-### MCP Server "Connection closed" Error
-This is caused by SEGFAULT (exit code 139) from concurrent audio playback, NOT a network issue.
-
-### Pling.m4a Duration
-The Pling.m4a file is **3.78 seconds** - too long for a startup chime! Need a shorter sound.
-
-### Code Paths
-- **Streaming mode** (default): Uses `stream_tts_audio()` - doesn't support background
-- **Buffered mode**: Uses `text_to_speech()` with NonBlockingAudioPlayer - supports background
-
----
-
-## Files Modified This Session
-
-- `voice_mode/audio_player.py`:
-  - Added `_active_players` registry to keep players alive during non-blocking playback
-  - Added `_register()` and `_unregister()` methods
-  - Players auto-register in `play()` when `blocking=False`
-  - Players auto-unregister when playback completes or is stopped
-
-- `voice_mode/tools/converse.py`:
-  - Added `_run_tts_in_background()` helper function (~line 422)
-  - Modified `converse()` to spawn background task when `background=True`
-  - Returns immediately instead of waiting for TTS generation
-  - Added `queue` parameter (default: True) for multi-window coordination
-  - Prepends "Message from {project}:" when message was queued
-
-- `voice_mode/conch.py`:
-  - Added `project` field to lock file
-  - Auto-detects project name from git repo or CWD
-
-- `voice_mode/core.py`:
-  - Added `play_tts_chime()` function (lines 779-828)
-  - Call chime at TTS start (line 215)
-  - Disable streaming when background=True (line 269)
-
-- `voice_mode/config.py`:
-  - Added `TTS_CHIME_ENABLED` config (line 436)
-  - Added `TTS_CHIME_NAME` config (line 437)
-
-- `voice_mode/data/soundfonts/default/chimes/`:
-  - Added Pling.m4a (3.78s - TOO LONG)
-  - Added echo-chime-chime-89653.mp3
-  - Added mystical-chime-196405.mp3
-  - Added public-announcement-chime-182478.mp3
-
----
-
-## Next Steps to Try
-
-1. ~~**Fix concurrent audio:**~~ ✅ DONE - Added player registry to `audio_player.py`
-
-2. ~~**Test in fresh session:**~~ ✅ DONE - Tested January 14, 2026
-   - Chime + TTS work together without segfault
-   - Test results: "✓ Message spoken successfully (gen: 1.2s, play: 2.8s)"
-
-3. **Shorter chime:** The Pling.m4a is 3.78s - need to trim it or use a shorter sound (~0.5s ideal)
 
 ---
 
 ## Test Commands
 
 ```bash
-# Test chime alone
+# Check audio manager status
+curl localhost:8881/status
+
+# Check audio manager health
+curl localhost:8881/health
+
+# Run tests (some expected failures due to architecture change)
+make test
+
+# Test chime rate-limiting (should only chime first time)
 uv run python -c "
 import asyncio
 from voice_mode.core import play_tts_chime
-asyncio.run(play_tts_chime())
+asyncio.run(play_tts_chime())  # Should play
+asyncio.run(play_tts_chime())  # Should skip (within 60s)
 "
-
-# Test TTS with chime disabled
-VOICEMODE_TTS_CHIME=false uv run python -c "
-import asyncio
-from voice_mode.server import mcp
-tools = mcp._tool_manager._tools
-asyncio.run(tools['converse'].fn(message='test', background=True))
-"
-
-# Test TTS with chime enabled (may segfault)
-uv run python -c "
-import asyncio
-from voice_mode.server import mcp
-tools = mcp._tool_manager._tools
-asyncio.run(tools['converse'].fn(message='test', background=True))
-"
-
-# Check chime config
-uv run python -c "from voice_mode.config import TTS_CHIME_ENABLED, TTS_CHIME_NAME; print(TTS_CHIME_ENABLED, TTS_CHIME_NAME)"
 ```
 
 ---
 
-## Previous Session Context (for reference)
-
-### MCP Server Fixes (Already Applied)
-- FastMCP banner: `show_banner=False` in server.py
-- Module identity: `sys.modules["voice_mode.server"] = sys.modules[__name__]`
-- Logging to stderr: `stream=sys.stderr` in config.py
-
-### Services Running
+## Services Running
 - Kokoro TTS on port 8880 (working)
+- Audio Manager on port 8881 (handles queuing and pause)
 - Wispr Flow handles voice input (external)

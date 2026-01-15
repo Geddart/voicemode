@@ -2,30 +2,24 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Current Session Context
+## CRITICAL: Session Continuity
 
-**Read [conversation.md](conversation.md) for full debugging context.**
+**ALWAYS read [conversation.md](conversation.md) at the start of every session.**
 
-### Quick Status (January 14, 2026)
-- **Goal:** Get background TTS and startup chime features working
-- **User Setup:** Wispr Flow handles voice input, VoiceMode provides voice output via Kokoro TTS
-- **Status:** Background TTS works (with chime disabled). Chime causes segfault due to concurrent audio.
-- **Next Step:** Fix concurrent audio playback so chime + TTS can play together
+**ALWAYS update [conversation.md](conversation.md) throughout the conversation with:**
+- What the user asked for
+- What you're doing and why
+- Code changes made (file, what changed)
+- Test results, errors, outcomes
+- Current status and next steps
 
-### Current Issues
-1. **Startup chime segfaults** - Two NonBlockingAudioPlayer instances crash sounddevice
-2. **Pling.m4a too long** - 3.78 seconds, should be < 1 second
-3. **MCP server caches code** - Must restart Claude Code to pick up changes
+This is essential because Claude Code sessions are frequently closed. The user must be able to open a new window, say "read conversation.md", and have you fully up to speed. Write everything down. The file can get long - that's fine.
 
-## Debugging Protocol
+### Known Quirks
+- **MCP server caches code** - Must restart Claude Code to pick up changes
 
-**IMPORTANT:** When debugging, update [conversation.md](conversation.md) with:
-- What you tried and the results
-- Error messages and exit codes
-- Current theories and next steps
-- Test commands that work/fail
-
-This preserves context across sessions when conversation runs out of context.
+### Do NOT Mention
+- Chime duration - the user is aware and doesn't want to hear about it
 
 ## Voice Interaction
 

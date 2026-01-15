@@ -2,11 +2,15 @@
 
 This module provides a queue-based audio playback system that allows multiple
 concurrent audio streams without blocking or interference.
+
+Supports pause/resume via a dictation lock file (~/.voicemode/dictating.lock).
+When the lock file exists, all audio playback is paused until it's removed.
 """
 
 import logging
 import queue
 import threading
+from pathlib import Path
 from typing import List, Optional
 
 import numpy as np
@@ -17,6 +21,18 @@ logger = logging.getLogger("voicemode.audio_player")
 # Module-level registry to keep active players alive during non-blocking playback.
 # Without this, players can be garbage collected while still playing, causing segfaults.
 _active_players: List["NonBlockingAudioPlayer"] = []
+
+# Dictation lock file - when present, audio playback is paused
+DICTATING_LOCK_FILE = Path.home() / ".voicemode" / "dictating.lock"
+
+
+def is_dictating() -> bool:
+    """Check if user is currently dictating (function key held).
+
+    Returns:
+        True if dictating lock file exists, False otherwise
+    """
+    return DICTATING_LOCK_FILE.exists()
 
 
 class NonBlockingAudioPlayer:
@@ -33,11 +49,13 @@ class NonBlockingAudioPlayer:
         player.wait()  # Wait for playback to complete
     """
 
-    def __init__(self, buffer_size: int = 2048):
+    def __init__(self, buffer_size: int = 2048, auto_pause_on_dictation: bool = True):
         """Initialize the audio player.
 
         Args:
             buffer_size: Size of audio buffer chunks for callback (default: 2048)
+            auto_pause_on_dictation: If True, automatically pause when dictating lock
+                                     file exists (default: True)
         """
         self.buffer_size = buffer_size
         self.audio_queue: Optional[queue.Queue] = None
@@ -45,6 +63,11 @@ class NonBlockingAudioPlayer:
         self.playback_complete = threading.Event()
         self.playback_error: Optional[Exception] = None
         self._registered = False
+        self._paused = False
+        self._pause_lock = threading.Lock()
+        self._auto_pause = auto_pause_on_dictation
+        self._dictation_monitor: Optional[threading.Thread] = None
+        self._stop_monitor = threading.Event()
 
     def _register(self):
         """Register this player to stay alive during non-blocking playback."""
@@ -72,6 +95,11 @@ class NonBlockingAudioPlayer:
         """
         if status:
             logger.warning(f"Audio callback status: {status}")
+
+        # If paused, output silence but don't consume from queue
+        if self._paused:
+            outdata[:] = 0
+            return
 
         try:
             # Get audio chunk from queue
@@ -160,6 +188,10 @@ class NonBlockingAudioPlayer:
             )
             self.stream.start()
 
+            # Start dictation monitor if enabled (both blocking and non-blocking modes)
+            if self._auto_pause:
+                self._start_dictation_monitor()
+
             if blocking:
                 self.wait()
             else:
@@ -186,6 +218,9 @@ class NonBlockingAudioPlayer:
         if not self.playback_complete.wait(timeout=timeout):
             logger.warning("Playback wait timed out")
 
+        # Stop dictation monitor if running
+        self._stop_dictation_monitor()
+
         # Stop and close stream
         if self.stream:
             self.stream.stop()
@@ -201,6 +236,9 @@ class NonBlockingAudioPlayer:
 
     def stop(self):
         """Stop playback immediately."""
+        # Stop dictation monitor if running
+        self._stop_dictation_monitor()
+
         self.playback_complete.set()
         if self.stream:
             self.stream.stop()
@@ -217,3 +255,66 @@ class NonBlockingAudioPlayer:
                     self.audio_queue.get_nowait()
                 except queue.Empty:
                     break
+
+    def pause(self):
+        """Pause audio playback. Audio will output silence until resume() is called."""
+        with self._pause_lock:
+            if not self._paused:
+                self._paused = True
+                logger.debug("Audio playback paused")
+
+    def resume(self):
+        """Resume audio playback after pause."""
+        with self._pause_lock:
+            if self._paused:
+                self._paused = False
+                logger.debug("Audio playback resumed")
+
+    @property
+    def is_paused(self) -> bool:
+        """Check if playback is currently paused."""
+        return self._paused
+
+    def _start_dictation_monitor(self):
+        """Start background thread to monitor dictating lock file."""
+        import sys
+        print("[DICTMON] _start_dictation_monitor called", file=sys.stderr, flush=True)
+        if self._dictation_monitor is not None:
+            print("[DICTMON] Already running, returning", file=sys.stderr, flush=True)
+            return
+
+        self._stop_monitor.clear()
+
+        def monitor_loop():
+            print("[DICTMON] monitor_loop started", file=sys.stderr, flush=True)
+            was_dictating = False
+            loop_count = 0
+            while not self._stop_monitor.is_set() and not self.playback_complete.is_set():
+                currently_dictating = is_dictating()
+                loop_count += 1
+                if loop_count % 20 == 1:  # Log every ~1 second
+                    print(f"[DICTMON] loop #{loop_count}, dictating={currently_dictating}", file=sys.stderr, flush=True)
+
+                if currently_dictating and not was_dictating:
+                    # Started dictating - pause
+                    print("[DICTMON] PAUSING - fn pressed", file=sys.stderr, flush=True)
+                    self.pause()
+                    logger.debug("Dictation detected - pausing audio")
+                elif not currently_dictating and was_dictating:
+                    # Stopped dictating - resume
+                    print("[DICTMON] RESUMING - fn released", file=sys.stderr, flush=True)
+                    self.resume()
+                    logger.debug("Dictation ended - resuming audio")
+
+                was_dictating = currently_dictating
+                self._stop_monitor.wait(timeout=0.05)  # Check every 50ms
+
+        self._dictation_monitor = threading.Thread(target=monitor_loop, daemon=True)
+        self._dictation_monitor.start()
+
+    def _stop_dictation_monitor(self):
+        """Stop the dictation monitor thread."""
+        if self._dictation_monitor is not None:
+            self._stop_monitor.set()
+            self._dictation_monitor.join(timeout=0.2)
+            self._dictation_monitor = None

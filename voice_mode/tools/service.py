@@ -694,9 +694,173 @@ async def view_logs(service_name: str, lines: Optional[int] = None) -> str:
         return f"❌ Error viewing logs: {str(e)}"
 
 
+async def _handle_audio_manager_service(action: str) -> str:
+    """Handle audio-manager service actions."""
+    from pathlib import Path
+    import httpx
+
+    AUDIO_MANAGER_PORT = int(os.getenv("VOICEMODE_AUDIO_MANAGER_PORT", "8881"))
+    AUDIO_MANAGER_URL = f"http://127.0.0.1:{AUDIO_MANAGER_PORT}"
+    PID_FILE = Path.home() / ".voicemode" / "audio_manager.pid"
+
+    async def is_running() -> tuple[bool, int | None]:
+        """Check if audio manager is running."""
+        # First try health check
+        try:
+            async with httpx.AsyncClient(timeout=1.0) as client:
+                resp = await client.get(f"{AUDIO_MANAGER_URL}/health")
+                if resp.status_code == 200:
+                    # Get PID from file if available
+                    pid = None
+                    if PID_FILE.exists():
+                        try:
+                            pid = int(PID_FILE.read_text().strip())
+                        except Exception:
+                            pass
+                    return True, pid
+        except Exception:
+            pass
+        return False, None
+
+    if action == "status":
+        running, pid = await is_running()
+        if running:
+            try:
+                async with httpx.AsyncClient(timeout=2.0) as client:
+                    resp = await client.get(f"{AUDIO_MANAGER_URL}/status")
+                    status = resp.json()
+
+                hotkey = status.get("hotkey", "fn")
+                queue_len = status.get("queue_length", 0)
+                playing = status.get("playing", False)
+                paused = status.get("paused", False)
+                dictation = status.get("dictation_active", False)
+
+                status_parts = [
+                    f"✅ Audio Manager is running",
+                    f"   PID: {pid}" if pid else "",
+                    f"   Port: {AUDIO_MANAGER_PORT}",
+                    f"   Hotkey: {hotkey}",
+                    f"   Queue: {queue_len} items",
+                    f"   Playing: {'Yes' if playing else 'No'}",
+                    f"   Paused: {'Yes' if paused else 'No'}",
+                    f"   Dictation: {'Active' if dictation else 'Inactive'}",
+                ]
+                return "\n".join([p for p in status_parts if p])
+            except Exception as e:
+                return f"✅ Audio Manager is running (PID: {pid}) but status unavailable: {e}"
+        else:
+            return "❌ Audio Manager is not running"
+
+    elif action == "start":
+        running, _ = await is_running()
+        if running:
+            return f"Audio Manager is already running on port {AUDIO_MANAGER_PORT}"
+
+        # Start the service
+        import sys
+        hotkey = os.getenv("VOICEMODE_PAUSE_HOTKEY", "fn")
+        cmd = [
+            sys.executable, "-m", "voice_mode.audio_manager",
+            "--port", str(AUDIO_MANAGER_PORT),
+            "--hotkey", hotkey,
+        ]
+
+        # Create log directory and files
+        log_dir = Path.home() / ".voicemode" / "logs" / "audio-manager"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        out_log = log_dir / "audio-manager.out.log"
+        err_log = log_dir / "audio-manager.err.log"
+
+        try:
+            stdout_file = open(out_log, "a")
+            stderr_file = open(err_log, "a")
+            process = subprocess.Popen(
+                cmd,
+                stdout=stdout_file,
+                stderr=stderr_file,
+                start_new_session=True,
+            )
+
+            # Wait for it to start
+            for _ in range(20):  # 2 seconds
+                await asyncio.sleep(0.1)
+                running, pid = await is_running()
+                if running:
+                    return f"✅ Audio Manager started (PID: {process.pid})"
+
+            return f"⚠️ Audio Manager started but not responding on port {AUDIO_MANAGER_PORT}"
+
+        except Exception as e:
+            return f"❌ Failed to start Audio Manager: {e}"
+
+    elif action == "stop":
+        running, pid = await is_running()
+        if not running:
+            return "Audio Manager is not running"
+
+        if pid:
+            try:
+                proc = psutil.Process(pid)
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except psutil.TimeoutExpired:
+                    proc.kill()
+                return f"✅ Audio Manager stopped (was PID: {pid})"
+            except psutil.NoSuchProcess:
+                if PID_FILE.exists():
+                    PID_FILE.unlink()
+                return "Audio Manager process not found (stale PID file removed)"
+            except Exception as e:
+                return f"❌ Failed to stop Audio Manager: {e}"
+        else:
+            return "❌ Cannot stop: PID unknown"
+
+    elif action == "restart":
+        stop_result = await _handle_audio_manager_service("stop")
+        await asyncio.sleep(1)
+        start_result = await _handle_audio_manager_service("start")
+        return f"Restart Audio Manager:\n{stop_result}\n{start_result}"
+
+    elif action == "logs":
+        lines_count = 50
+        log_dir = Path.home() / ".voicemode" / "logs" / "audio-manager"
+        out_log = log_dir / "audio-manager.out.log"
+        err_log = log_dir / "audio-manager.err.log"
+
+        logs = []
+        if out_log.exists():
+            with open(out_log) as f:
+                stdout_lines = f.readlines()[-lines_count:]
+                if stdout_lines:
+                    logs.append(f"=== stdout (last {len(stdout_lines)} lines) ===")
+                    logs.extend(stdout_lines)
+
+        if err_log.exists():
+            with open(err_log) as f:
+                stderr_lines = f.readlines()[-lines_count:]
+                if stderr_lines:
+                    if logs:
+                        logs.append("")
+                    logs.append(f"=== stderr (last {len(stderr_lines)} lines) ===")
+                    logs.extend(stderr_lines)
+
+        if logs:
+            return "".join(logs).rstrip()
+        else:
+            return f"No logs found for audio-manager. Try restarting to enable logging."
+
+    elif action in ("enable", "disable", "update-service-files"):
+        return f"⚠️ Action '{action}' not yet implemented for audio-manager"
+
+    else:
+        return f"❌ Unknown action: {action}"
+
+
 @mcp.tool()
 async def service(
-    service_name: Literal["kokoro"],
+    service_name: Literal["kokoro", "audio-manager"],
     action: Literal["status", "start", "stop", "restart", "enable", "disable", "logs", "update-service-files"] = "status",
     lines: Optional[Union[int, str]] = None
 ) -> str:
@@ -707,6 +871,9 @@ Args:
     action: status|start|stop|restart|enable|disable|logs|update-service-files
     lines: Log lines to show (logs action only, default: 50)
     """
+    # Handle audio-manager service separately
+    if service_name == "audio-manager":
+        return await _handle_audio_manager_service(action)
     # Convert lines to integer if provided as string
     if lines is not None and isinstance(lines, str):
         try:

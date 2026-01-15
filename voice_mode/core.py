@@ -208,6 +208,20 @@ async def text_to_speech(
     
     metrics = {}
 
+    # Reserve a queue slot BEFORE generating audio
+    # This ensures proper FIFO ordering across multiple windows
+    from . import audio_router
+    reservation = await audio_router.reserve_slot(priority="normal")
+    item_id = reservation.get("item_id") if reservation.get("reserved") else None
+    if item_id:
+        logger.debug(f"Reserved audio queue slot: {item_id}")
+
+    # Add project announcement if queued behind different project
+    if reservation.get("should_announce"):
+        from .config import get_project_name
+        text = f"Update from {get_project_name()}: {text}"
+        logger.info(f"Added project announcement (queued behind different project)")
+
     # Play chime to mask TTS generation latency
     # This plays in background while Kokoro/OpenAI generates the audio
     from .config import TTS_CHIME_ENABLED, TTS_CHIME_NAME
@@ -279,8 +293,8 @@ async def text_to_speech(
             # Use streaming playback
             logger.info(f"Using streaming playback for {validated_format}")
             from .streaming import stream_tts_audio
-            
-            # Pass the client directly
+
+            # Pass the client directly, including reserved item_id
             success, stream_metrics = await stream_tts_audio(
                 text=text,
                 openai_client=openai_clients[client_key],
@@ -288,7 +302,8 @@ async def text_to_speech(
                 debug=debug,
                 save_audio=save_audio,
                 audio_dir=audio_dir,
-                conversation_id=conversation_id
+                conversation_id=conversation_id,
+                item_id=item_id,  # Pass reserved slot
             )
             
             if success:
@@ -432,19 +447,34 @@ async def text_to_speech(
                             silence = np.zeros((silence_samples, samples.shape[1]), dtype=np.float32)
                             samples_with_buffer = np.vstack([silence, samples])
 
-                        # Use non-blocking audio player for concurrent playback support
-                        player = NonBlockingAudioPlayer()
-                        player.play(samples_with_buffer, audio.frame_rate, blocking=False)
+                        # Convert samples to int16 for audio manager
+                        samples_int16 = (samples_with_buffer * 32767).clip(-32768, 32767).astype(np.int16)
+                        audio_bytes = samples_int16.tobytes()
+
+                        # Route through audio manager for proper multi-window coordination
+                        if item_id:
+                            # Fill the reserved slot
+                            result = await audio_router.fill_slot(
+                                item_id=item_id,
+                                audio_data=audio_bytes,
+                                sample_rate=audio.frame_rate,
+                                blocking=not background,
+                            )
+                        else:
+                            # Fallback: direct queue (no reservation)
+                            result = await audio_router.play_audio(
+                                audio_data=audio_bytes,
+                                sample_rate=audio.frame_rate,
+                                blocking=not background,
+                            )
 
                         if background:
                             # Background mode: return immediately without waiting
-                            # Audio will continue playing while caller proceeds
                             metrics['playback'] = 0
                             metrics['background'] = True
                             logger.info("TTS: Playback started in background mode")
                         else:
-                            # Normal mode: wait for playback to complete
-                            player.wait()
+                            # Normal mode: playback completed (fill_slot waited)
                             playback_end = time.perf_counter()
                             metrics['playback'] = playback_end - playback_start
 
@@ -652,6 +682,9 @@ async def play_chime_start(
 ) -> bool:
     """Play the recording start chime (ascending tones).
 
+    Routed through audio manager for proper multi-window coordination and
+    hotkey pause support.
+
     Args:
         sample_rate: Sample rate for audio
         leading_silence: Optional override for leading silence duration (seconds)
@@ -660,6 +693,8 @@ async def play_chime_start(
     Returns:
         True if chime played successfully, False otherwise
     """
+    from . import audio_router
+
     try:
         chime = generate_chime(
             [800, 1000],
@@ -668,12 +703,14 @@ async def play_chime_start(
             leading_silence=leading_silence,
             trailing_silence=trailing_silence
         )
-        # Convert int16 to float32 normalized to [-1, 1] for NonBlockingAudioPlayer
-        chime_float = chime.astype(np.float32) / 32768.0
-        # Use non-blocking audio player to avoid interference with concurrent playback
-        player = NonBlockingAudioPlayer()
-        player.play(chime_float, sample_rate, blocking=True)
-        return True
+        # Chime is already int16 - route through audio manager
+        result = await audio_router.play_audio(
+            audio_data=chime.tobytes(),
+            sample_rate=sample_rate,
+            priority="high",
+            blocking=True,
+        )
+        return result.get("queued", False)
     except Exception as e:
         logger.debug(f"Could not play start chime: {e}")
         return False
@@ -686,6 +723,9 @@ async def play_chime_end(
 ) -> bool:
     """Play the recording end chime (descending tones).
 
+    Routed through audio manager for proper multi-window coordination and
+    hotkey pause support.
+
     Args:
         sample_rate: Sample rate for audio
         leading_silence: Optional override for leading silence duration (seconds)
@@ -694,6 +734,8 @@ async def play_chime_end(
     Returns:
         True if chime played successfully, False otherwise
     """
+    from . import audio_router
+
     try:
         chime = generate_chime(
             [1000, 800],
@@ -702,12 +744,14 @@ async def play_chime_end(
             leading_silence=leading_silence,
             trailing_silence=trailing_silence
         )
-        # Convert int16 to float32 normalized to [-1, 1] for NonBlockingAudioPlayer
-        chime_float = chime.astype(np.float32) / 32768.0
-        # Use non-blocking audio player to avoid interference with concurrent playback
-        player = NonBlockingAudioPlayer()
-        player.play(chime_float, sample_rate, blocking=True)
-        return True
+        # Chime is already int16 - route through audio manager
+        result = await audio_router.play_audio(
+            audio_data=chime.tobytes(),
+            sample_rate=sample_rate,
+            priority="high",
+            blocking=True,
+        )
+        return result.get("queued", False)
     except Exception as e:
         logger.debug(f"Could not play end chime: {e}")
         return False
@@ -719,6 +763,9 @@ async def play_system_audio(message_key: str, fallback_text: Optional[str] = Non
     System audio files should be stored in voice_mode/data/soundfonts/{soundfont}/system-messages/
     with the naming pattern: {message_key}.mp3 (or .wav, .opus, .opus, etc.)
 
+    Routed through audio manager for proper multi-window coordination and
+    hotkey pause support.
+
     Args:
         message_key: Key for the system message (e.g., "waiting-1-minute", "ready-to-listen", "repeating")
         fallback_text: Text to speak if audio file doesn't exist (falls back to TTS)
@@ -729,7 +776,7 @@ async def play_system_audio(message_key: str, fallback_text: Optional[str] = Non
     """
     from pathlib import Path
     from pydub import AudioSegment
-    import numpy as np
+    from . import audio_router
 
     # Get path to system messages directory in soundfonts
     system_audio_dir = Path(__file__).parent / "data" / "soundfonts" / soundfont / "system-messages"
@@ -744,19 +791,31 @@ async def play_system_audio(message_key: str, fallback_text: Optional[str] = Non
 
     if audio_file:
         try:
-            logger.info(f"🔊 Playing system audio: {audio_file}")
+            logger.info(f"Playing system audio: {audio_file}")
             audio = AudioSegment.from_file(str(audio_file))
-            samples = np.array(audio.get_array_of_samples(), dtype=np.float32)
+
+            # Convert to mono if stereo
             if audio.channels == 2:
-                samples = samples.reshape((-1, 2))
-            samples = samples / (2**15)  # Normalize to [-1, 1]
+                audio = audio.set_channels(1)
 
-            # Use non-blocking audio player to avoid interference with concurrent playback
-            player = NonBlockingAudioPlayer()
-            player.play(samples, audio.frame_rate, blocking=True)
+            # Get raw samples as int16 bytes for audio manager
+            samples = np.array(audio.get_array_of_samples(), dtype=np.int16)
+            pcm_data = samples.tobytes()
 
-            logger.info(f"✓ System audio played successfully: {message_key}")
-            return True
+            # Route through audio manager with high priority
+            result = await audio_router.play_audio(
+                audio_data=pcm_data,
+                sample_rate=audio.frame_rate,
+                priority="high",
+                blocking=True,
+            )
+
+            if result.get("queued"):
+                logger.info(f"System audio played successfully: {message_key}")
+                return True
+            else:
+                logger.warning(f"Failed to queue system audio: {result.get('error', 'unknown')}")
+                # Fall through to TTS fallback
         except Exception as e:
             logger.warning(f"Failed to play system audio {audio_file}: {e}")
             # Fall through to TTS fallback
@@ -782,6 +841,13 @@ async def play_tts_chime(soundfont: str = "default", chime_name: str = "Pling") 
     This plays in the background (non-blocking) to mask TTS processing latency.
     The chime plays while Kokoro/OpenAI is generating the speech audio.
 
+    Rate-limited to once per minute across ALL windows via the audio manager.
+    This ensures only one chime plays even if multiple windows trigger TTS
+    simultaneously.
+
+    Routed through audio manager for proper multi-window coordination and
+    hotkey pause support.
+
     Args:
         soundfont: Name of the soundfont to use (default: "default")
         chime_name: Name of the chime file without extension (default: "Pling")
@@ -791,7 +857,14 @@ async def play_tts_chime(soundfont: str = "default", chime_name: str = "Pling") 
     """
     from pathlib import Path
     from pydub import AudioSegment
-    import numpy as np
+    from . import audio_router
+    from .audio_manager.client import AudioManagerClient
+
+    # Check with audio manager if chime is allowed (centralized rate-limiting)
+    client = AudioManagerClient(auto_start=True)
+    if not await client.chime_allowed():
+        logger.debug("Skipping chime (rate-limited by audio manager)")
+        return False
 
     # Get path to chimes directory in soundfonts
     chimes_dir = Path(__file__).parent / "data" / "soundfonts" / soundfont / "chimes"
@@ -809,20 +882,32 @@ async def play_tts_chime(soundfont: str = "default", chime_name: str = "Pling") 
         return False
 
     try:
-        logger.debug(f"🔔 Playing TTS chime: {audio_file}")
+        logger.debug(f"Playing TTS chime: {audio_file}")
         audio = AudioSegment.from_file(str(audio_file))
-        samples = np.array(audio.get_array_of_samples(), dtype=np.float32)
+
+        # Convert to mono if stereo
         if audio.channels == 2:
-            samples = samples.reshape((-1, 2))
-        samples = samples / (2**15)  # Normalize to [-1, 1]
+            audio = audio.set_channels(1)
 
-        # Use non-blocking audio player - don't wait for playback to finish
-        # This allows the chime to play while TTS generation happens
-        player = NonBlockingAudioPlayer()
-        player.play(samples, audio.frame_rate, blocking=False)
+        # Get raw samples as int16 bytes for audio manager
+        samples = np.array(audio.get_array_of_samples(), dtype=np.int16)
+        pcm_data = samples.tobytes()
 
-        logger.debug(f"✓ TTS chime started playing in background")
-        return True
+        # Route through audio manager with high priority (plays before TTS)
+        # Non-blocking so TTS can be queued immediately
+        result = await audio_router.play_audio(
+            audio_data=pcm_data,
+            sample_rate=audio.frame_rate,
+            priority="high",
+            blocking=False,
+        )
+
+        if result.get("queued"):
+            logger.debug("TTS chime queued for playback")
+            return True
+        else:
+            logger.debug(f"Failed to queue TTS chime: {result.get('error', 'unknown')}")
+            return False
     except Exception as e:
         logger.debug(f"Failed to play TTS chime: {e}")
         return False

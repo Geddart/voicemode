@@ -59,6 +59,12 @@ coreml = [
     "transformers",
     "ane-transformers",
 ]
+dictation = [
+    # For dictation monitor daemon (fn key detection)
+    "pyobjc-framework-Quartz>=10.0; sys_platform == 'darwin'",
+    "pyobjc-framework-Cocoa>=10.0; sys_platform == 'darwin'",
+    "pynput>=1.7.0; sys_platform != 'darwin'",
+]
 dev = [
     "build>=1.0.0",
     "twine>=4.0.0",
